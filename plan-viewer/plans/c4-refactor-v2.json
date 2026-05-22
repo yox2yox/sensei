@@ -1,0 +1,767 @@
+{
+  "title": "plan-viewer を読み解く — 建築模型ショールームに来た来場者のためのガイド",
+  "description": "<a href=\"#glossary:plan-viewer\">plan-viewer</a> は実装計画 JSON を読み込んでブラウザに描画する小さな静的アプリです。今回の改修で、図の構成が <a href=\"#glossary:c4-model\">C4 モデル</a> の 4 レイヤー (Context / Container / Component / Code) に整理されました。このプランは、コードも C4 モデルも知らない来場者を「建築模型ショールーム」に案内する形で、ビューアの内部・型ルール・図の分割方法をゼロから順に体験してもらう導入ツアーです。",
+  "metaphor": {
+    "title": "建築模型ショールーム (4 段階ズームの街)",
+    "description": "ショールームに 4 つの模型台が並んでいます。手前から順に、街全体の縮尺模型 (Context)、街の中の建物模型 (Container)、建物の中の部屋模型 (Component)、部屋の中の部品模型 (Code) です。来場者は案内係 (plan-viewer) について 4 つの台を順に見て回ります。プラン作者は『どの台に何の小物を置くか』のルール (glossary type) を守る義務があります。"
+  },
+  "takeaway": "このプランを読み終わると、自分でも『建築模型ショールーム形式』のプラン JSON を書いて、ビューアに 4 枚の模型台を並べさせることができるようになります。",
+  "glossary": [
+    {
+      "id": "reader",
+      "type": "person",
+      "name": "来場者 (プラン読者)",
+      "icon": "🧑",
+      "description": "コードもプロジェクトも知らない読者。<a href=\"#glossary:plan-viewer\">plan-viewer</a> が描いた HTML をブラウザで開き、計画を理解しようとしている。",
+      "analogy": "ショールームに初めて来た一般来場者",
+      "responsibility": "案内係に従って 4 つの模型台を順に観察し、矢印テープで結ばれた小物の関係を頭に入れる"
+    },
+    {
+      "id": "plan-author",
+      "type": "person",
+      "name": "プラン作者",
+      "icon": "✍️",
+      "description": "<a href=\"#glossary:sensei-skill\">sensei スキル</a> を使って <a href=\"#glossary:plan-json\">plan.json</a> を書く人。今あなたが書いているこのファイルもプラン作者の仕事。",
+      "analogy": "ショールームの企画担当",
+      "responsibility": "ルールに従って小物を正しい模型台へ載せ、矢印テープを順序つきで貼る"
+    },
+    {
+      "id": "c4-model",
+      "type": "external-system",
+      "name": "C4 モデル",
+      "icon": "📐",
+      "description": "システムを Context (世界) / Container (デプロイ単位) / Component (中身) / Code (詳細) の 4 階層に分けて図解する手法。<a href=\"#glossary:plan-viewer\">plan-viewer</a> はこの 4 レイヤーをそのまま図のレイアウト単位に使う。",
+      "analogy": "ショールームに 4 段階のズームを採用する『展示プロトコル』",
+      "responsibility": "どの粒度の話をどの台に置くかを決める世界標準のルール"
+    },
+    {
+      "id": "browser",
+      "type": "external-system",
+      "name": "ブラウザ",
+      "icon": "🌐",
+      "description": "<a href=\"#glossary:reader\">来場者</a> が plan.html を開く環境。ネットワークもサーバーも不要で、file:// プロトコルでもそのまま動く。",
+      "analogy": "ショールームの建物そのもの (ここで模型展が開かれる)",
+      "responsibility": "JSON が埋め込まれた静的 HTML を読み込み、JavaScript を実行する"
+    },
+    {
+      "id": "plan-viewer",
+      "type": "client",
+      "name": "plan-viewer",
+      "icon": "🖼️",
+      "description": "Svelte 製の静的 Web アプリ。HTML に埋め込まれた plan.json を読み、4 つの模型台 (C4 レイヤー) を順に描く。",
+      "analogy": "ショールームの案内係 (来場者の隣で順に台を解説する)",
+      "responsibility": "<a href=\"#glossary:plan-json\">plan.json</a> をデコードしてヘッダ・glossary パネル・各 example のアーキテクチャ図を描画する"
+    },
+    {
+      "id": "sensei-skill",
+      "type": "client",
+      "name": "sensei スキル",
+      "icon": "🪄",
+      "description": "Claude Code から呼ばれるスキル。<a href=\"#glossary:plan-author\">プラン作者</a> が書いた JSON を検証し、自己完結 HTML に焼き込むツールチェイン。",
+      "analogy": "ショールーム企画担当が使う『展示準備キット』",
+      "responsibility": "validate_plan.mjs / make_plan.mjs を提供し、ルール違反を弾いて HTML を吐き出す"
+    },
+    {
+      "id": "plan-json",
+      "type": "db",
+      "name": "plan.json",
+      "icon": "📦",
+      "description": "プラン作者が書く JSON ファイル。glossary・metaphor・pairs・examples・architectureDiagrams を含む。<a href=\"#glossary:plan-viewer\">plan-viewer</a> の入力。",
+      "analogy": "模型と矢印テープが全部詰まった搬入用コンテナ",
+      "responsibility": "ショールームに並べる全小物 (glossary) と、台ごとの矢印 (architectureDiagrams) を 1 つの箱に格納する"
+    },
+    {
+      "id": "plan-html",
+      "type": "db",
+      "name": "plan.html",
+      "icon": "📄",
+      "description": "<a href=\"#glossary:sensei-skill\">sensei スキル</a> が生成する自己完結 HTML。中に <a href=\"#glossary:plan-json\">plan.json</a> が <code>&lt;script id=\"plan-data\"&gt;</code> としてインライン化されており、サーバー不要で開ける。",
+      "analogy": "ショールームの完成版パッケージ (来場者はこれを開くだけ)",
+      "responsibility": "viewer バンドルと plan.json を 1 ファイルに同梱する"
+    },
+    {
+      "id": "glossary-array",
+      "type": "module",
+      "name": "glossary 配列",
+      "icon": "📚",
+      "description": "<a href=\"#glossary:plan-json\">plan.json</a> 内の <code>glossary[]</code>。各要素が 1 つの小物 (人・建物・部屋・部品) を表す。<code>type</code> フィールドでどの模型台に載るかが決まる。",
+      "analogy": "搬入コンテナの中の『小物リスト』",
+      "responsibility": "id・type・name・icon を持つアイテム配列を提供する"
+    },
+    {
+      "id": "architecture-diagrams",
+      "type": "module",
+      "name": "architectureDiagrams",
+      "icon": "🗺️",
+      "description": "各 state (currentState / proposedState) の中にあるオブジェクト。<code>context / container / component / code</code> の 4 キーを持ち、それぞれが <a href=\"#glossary:architecture-edge\">edges</a> の配列を含む。",
+      "analogy": "コンテナの中の『4 つの模型台に貼る矢印テープの束』",
+      "responsibility": "C4 レイヤーごとに分割された図データを保持する"
+    },
+    {
+      "id": "normalize-plan",
+      "type": "module",
+      "name": "normalizePlan",
+      "icon": "🛂",
+      "description": "<code>plan-viewer/src/utils/normalize.ts</code> に定義された関数群。読み込んだ plan を検査し、レイヤー違反 (例: code レイヤーの図に person を置く) を見つけたらビューア起動時にエラー表示する。",
+      "analogy": "搬入口の検品係 (置く台を間違えた小物を弾く)",
+      "responsibility": "<a href=\"#glossary:collect-layer-violations\">collectLayerViolations</a> を呼び、違反があれば throw する",
+      "evidence": [
+        {
+          "path": "plan-viewer/src/utils/normalize.ts",
+          "startLine": 90,
+          "endLine": 118,
+          "label": "ビューア側の検品ロジック"
+        }
+      ]
+    },
+    {
+      "id": "c4-util",
+      "type": "module",
+      "name": "c4.ts (レイヤー定義)",
+      "icon": "🧭",
+      "description": "<code>plan-viewer/src/utils/c4.ts</code>。glossary type と C4 レイヤーの対応マップを定義し、<code>getC4Layer</code> や <code>isTypeInLayer</code> を提供する。",
+      "analogy": "ショールーム共通のラベリング規約 (どの小物はどの台か)",
+      "responsibility": "GLOSSARY_TYPE_TO_LAYER を単一の真実とする",
+      "evidence": [
+        {
+          "path": "plan-viewer/src/utils/c4.ts",
+          "startLine": 5,
+          "endLine": 21,
+          "label": "type → layer の固定マップ"
+        }
+      ]
+    },
+    {
+      "id": "validate-plan-script",
+      "type": "module",
+      "name": "validate_plan.mjs",
+      "icon": "🧪",
+      "description": "<a href=\"#glossary:sensei-skill\">sensei スキル</a> 側の事前検証スクリプト。HTML を作る前に <a href=\"#glossary:plan-json\">plan.json</a> をチェックする。",
+      "analogy": "搬入トラックを止めて中身を確認する『出発前点検』",
+      "responsibility": "zod スキーマ + 参照整合性 (validateReferences) で plan を弾く"
+    },
+    {
+      "id": "validate-references",
+      "type": "function",
+      "name": "validateReferences()",
+      "icon": "🔎",
+      "description": "<code>plan-schema.zod.mjs</code> 内の関数。zod では表現しきれない『同じ state 内の edge の order が 1..N 連番か』『type のレイヤーが図のレイヤーと一致するか』を実行時にチェックする。",
+      "analogy": "規約ブックを片手に矢印テープの番号と模型台を一個ずつ照合する点検員",
+      "responsibility": "glossary 内の id 重複・parentId サイクル・edge の order 連番・型レイヤー一致を検査する",
+      "parentId": "validate-plan-script",
+      "evidence": [
+        {
+          "path": ".apm/skills/sensei/scripts/lib/plan-schema.zod.mjs",
+          "startLine": 196,
+          "endLine": 362,
+          "label": "参照整合性の核"
+        }
+      ]
+    },
+    {
+      "id": "glossary-type-enum",
+      "type": "interface",
+      "name": "GlossaryType (11 種)",
+      "icon": "🏷️",
+      "description": "プラン作者が glossary[].type に書ける値の列挙。<code>person / external-system / client / server / cloud-service / db / class / module / function / table / interface</code> の 11 種。`term` は廃止。",
+      "analogy": "ショールームの『小物カテゴリ表 (全 11 種)』",
+      "responsibility": "11 種のうちどれかを宣言することで、その小物がどの台に置かれるかが自動的に確定する",
+      "evidence": [
+        {
+          "path": "plan-viewer/src/types.ts",
+          "startLine": 3,
+          "endLine": 18,
+          "label": "型定義"
+        }
+      ]
+    },
+    {
+      "id": "c4-layer-enum",
+      "type": "interface",
+      "name": "C4Layer (4 種)",
+      "icon": "🎚️",
+      "description": "<code>context | container | component | code</code> の 4 種類。<a href=\"#glossary:architecture-diagrams\">architectureDiagrams</a> のキーになる。",
+      "analogy": "模型台 4 つの名札",
+      "responsibility": "ズームの 4 段階を識別する"
+    },
+    {
+      "id": "type-to-layer-map",
+      "type": "interface",
+      "name": "GLOSSARY_TYPE_TO_LAYER",
+      "icon": "🔁",
+      "description": "<a href=\"#glossary:glossary-type-enum\">GlossaryType</a> から <a href=\"#glossary:c4-layer-enum\">C4Layer</a> への固定写像。例: <code>person → context</code>, <code>db → container</code>, <code>function → code</code>。",
+      "analogy": "『小物カテゴリ』を『模型台』に貼り替える対応表",
+      "responsibility": "type を 1 つ書くだけで、その小物がどの模型台に載るかをビューアと validator の双方に伝える",
+      "evidence": [
+        {
+          "path": "plan-viewer/src/utils/c4.ts",
+          "startLine": 5,
+          "endLine": 21,
+          "label": "ビューア側の対応表"
+        }
+      ]
+    },
+    {
+      "id": "architecture-edge",
+      "type": "interface",
+      "name": "ArchitectureEdge",
+      "icon": "➡️",
+      "description": "1 本の矢印を表す型。<code>order / source / target / label / data</code> を必須に持つ。source と target は同じレイヤーの glossary 同士でなければならない。",
+      "analogy": "1 本の矢印テープ (番号札・出発点・到着点・説明ラベル付き)",
+      "responsibility": "順序つきの関係 1 本を表現する",
+      "evidence": [
+        {
+          "path": "plan-viewer/src/types.ts",
+          "startLine": 41,
+          "endLine": 52,
+          "label": "edge の必須フィールド"
+        }
+      ]
+    },
+    {
+      "id": "edge-order",
+      "type": "function",
+      "name": "order (連番ルール)",
+      "icon": "🔢",
+      "description": "同じ state 内で全レイヤー横断に 1..N の重複なし連番。scene の <code>edgeRefs</code> はこの番号で図の矢印を指す。",
+      "analogy": "番号札 (台をまたいでも同じ番号空間)",
+      "responsibility": "scene の文章と図の矢印を 1 対 1 で結ぶインデックスを提供する"
+    },
+    {
+      "id": "collect-layer-violations",
+      "type": "function",
+      "name": "collectLayerViolations()",
+      "icon": "🚦",
+      "description": "<a href=\"#glossary:normalize-plan\">normalizePlan</a> から呼ばれる関数。各 edge の source/target が指す glossary の type を <a href=\"#glossary:type-to-layer-map\">GLOSSARY_TYPE_TO_LAYER</a> で引いて、図のレイヤーと不一致なら違反として返す。",
+      "analogy": "矢印テープを 1 本ずつ取って『この出発点はこの台にあるか?』を確認する目視点検",
+      "responsibility": "ビューア起動時に違反を集めて、最初の 1 件を含むメッセージを throw する",
+      "parentId": "normalize-plan",
+      "evidence": [
+        {
+          "path": "plan-viewer/src/utils/normalize.ts",
+          "startLine": 40,
+          "endLine": 65,
+          "label": "edge 1 本ごとの照合"
+        }
+      ]
+    }
+  ],
+  "pairs": [
+    {
+      "title": "ペア1: ショールーム自体を見渡す — plan-viewer と C4 モデルって何?",
+      "takeaway": "このペアを読み終わると、来場者は『<a href=\"#glossary:plan-viewer\">plan-viewer</a> は <a href=\"#glossary:plan-json\">plan.json</a> を読んで 4 つの模型台を順に並べる案内係だ』と一言で言えるようになります。",
+      "safeguards": [
+        "<a href=\"#glossary:plan-viewer\">plan-viewer</a> は file:// プロトコルでもそのまま動きます。ネットワークもサーバーも要りません。来場者は <a href=\"#glossary:plan-html\">plan.html</a> をダブルクリックするだけです。",
+        "C4 モデルは『どこまで詳しく描くか』を 4 段階に分けるだけの規約で、難しい数学はありません。ショールームのズーム倍率 4 段階だと思って差し支えありません。"
+      ],
+      "examples": [
+        {
+          "title": "例1: 来場者が plan.html を開いてから 4 つの模型台が並ぶまで",
+          "condition": "来場者がブラウザで plan.html をダブルクリックして開いた直後の流れ。",
+          "currentState": {
+            "storyTitle": "AS-IS: 改修前は『模型台が 1 つしかない雑多な展示』だった",
+            "takeaway": "改修前は<a href=\"#glossary:plan-viewer\">案内係</a>が小物全部を 1 枚の床にぶちまけて並べていて、来場者は『どれが街でどれが部品か』を頭の中で仕分けする羽目になっていました。",
+            "scenes": [
+              {
+                "title": "AS-IS場面1: 街 (Context) の話をする来場者",
+                "actor": "reader",
+                "action": "<a href=\"#glossary:reader\">来場者</a> が『そもそもこのシステムは誰が使うの?』とショールームに入ってくる。これは Context (一番外側の街並み) を見たいというリクエスト。",
+                "result": "しかし案内係 (<a href=\"#glossary:plan-viewer\">plan-viewer</a>) は 1 枚の床しか持っていないので、街も建物も部屋も部品も同じ床に並べてしまう。",
+                "edgeRefs": [
+                  1
+                ]
+              },
+              {
+                "title": "AS-IS場面2: 矢印テープの番号が混線する",
+                "actor": "plan-viewer",
+                "action": "プラン作者は『街の話の矢印』と『部品の話の矢印』を 1 つの図にまとめて貼っていた。order=1 が街の話、order=2 がいきなり関数の話、というふうに混在し、<a href=\"#glossary:reader\">来場者</a> は番号順に追っても話が飛んで理解できない。",
+                "result": "結局来場者は番号を無視してテープを目で追うことになり、案内係の存在意義が薄かった。",
+                "edgeRefs": [
+                  2
+                ]
+              }
+            ],
+            "architectureDiagrams": {
+              "context": {
+                "edges": [
+                  {
+                    "order": 1,
+                    "source": "reader",
+                    "target": "browser",
+                    "label": "plan.html をダブルクリック",
+                    "data": "file:// パス"
+                  }
+                ]
+              },
+              "container": {
+                "edges": [
+                  {
+                    "order": 2,
+                    "source": "plan-viewer",
+                    "target": "plan-json",
+                    "label": "1 枚の床に全部並べる",
+                    "data": "未分類の glossary + edges",
+                    "edgeStyle": "dashed"
+                  }
+                ]
+              }
+            }
+          },
+          "proposedState": {
+            "storyTitle": "TO-BE: 改修後は『4 段ズームの模型ツアー』になる",
+            "takeaway": "改修後は<a href=\"#glossary:plan-viewer\">案内係</a>が 4 つの模型台 (Context → Container → Component → Code) を用意して、来場者を外側から順にズームインさせます。",
+            "scenes": [
+              {
+                "title": "TO-BE場面1: 街並みの模型台 (Context) で世界を見せる",
+                "actor": "reader",
+                "action": "<a href=\"#glossary:reader\">来場者</a> が <a href=\"#glossary:browser\">ブラウザ</a> で plan.html を開くと、まず Context 模型台が描画される。ここには <a href=\"#glossary:c4-model\">C4 モデル</a> や外部システムなど『街の外側』の小物だけが置かれる。",
+                "result": "来場者は『この計画は誰のためか・どんな外部世界と関わるか』を 5 秒で把握する。",
+                "edgeRefs": [
+                  1,
+                  2
+                ]
+              },
+              {
+                "title": "TO-BE場面2: 建物の模型台 (Container) にズームインする",
+                "actor": "plan-viewer",
+                "action": "<a href=\"#glossary:plan-viewer\">案内係</a> が次に <code>architectureDiagrams.container</code> を描画する。これはさっきの街 (Context) の中にある『建物模型台』。<a href=\"#glossary:plan-viewer\">plan-viewer</a> と <a href=\"#glossary:sensei-skill\">sensei スキル</a>、<a href=\"#glossary:plan-json\">plan.json</a> など、デプロイ単位の小物だけが並ぶ。",
+                "result": "来場者は『どのアプリと、どの保管庫と、どのツールが関わるか』を建物単位で理解する。",
+                "edgeRefs": [
+                  3,
+                  4
+                ]
+              }
+            ],
+            "architectureDiagrams": {
+              "context": {
+                "edges": [
+                  {
+                    "order": 1,
+                    "source": "reader",
+                    "target": "c4-model",
+                    "label": "4 段階ズームを学ぶ",
+                    "data": "展示プロトコル"
+                  },
+                  {
+                    "order": 2,
+                    "source": "reader",
+                    "target": "browser",
+                    "label": "plan.html を開く",
+                    "data": "file:// URL"
+                  }
+                ]
+              },
+              "container": {
+                "edges": [
+                  {
+                    "order": 3,
+                    "source": "plan-viewer",
+                    "target": "plan-json",
+                    "label": "JSON を読む",
+                    "data": "<script id=plan-data> 埋め込み",
+                    "animated": true
+                  },
+                  {
+                    "order": 4,
+                    "source": "sensei-skill",
+                    "target": "plan-html",
+                    "label": "make_plan.mjs で焼き込む",
+                    "data": "viewer + JSON が同梱された HTML"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "title": "ペア2: 小物の置き場所ルール — glossary type が C4 レイヤーを 1 つに決める",
+      "takeaway": "このペアを読み終わると、プラン作者は『<a href=\"#glossary:glossary-type-enum\">11 種の type</a> のどれを書けば、その小物がどの模型台に載るか』を反射的に答えられるようになります。",
+      "safeguards": [
+        "<a href=\"#glossary:glossary-type-enum\">type</a> は 11 種のみです: <code>person / external-system / client / server / cloud-service / db / class / module / function / table / interface</code>。`term` 型は廃止されました。",
+        "<a href=\"#glossary:type-to-layer-map\">GLOSSARY_TYPE_TO_LAYER</a> は <code>plan-viewer/src/utils/c4.ts</code> と <code>scripts/lib/plan-schema.zod.mjs</code> の両方に同じ内容で定義されています。プラン作者はこの対応表を一度覚えれば、ビューア側でも validator 側でも同じ判定がされます。",
+        "<a href=\"#glossary:glossary-array\">glossary 配列</a> 内の各アイテムに書ける任意フィールドは <code>analogy / responsibility / parentId / evidence</code> です。<code>persona</code> は廃止されているので書くと弾かれます。"
+      ],
+      "examples": [
+        {
+          "title": "例2: プラン作者が『認証DB』という小物を 1 つ追加する",
+          "condition": "プラン作者がアーキテクチャを説明するため、新しい glossary item として『認証DB』を追加したいと考えた。",
+          "currentState": {
+            "storyTitle": "AS-IS: 改修前は『term 型でとりあえず置く』が許されていた",
+            "takeaway": "改修前は <code>type: \"term\"</code> という万能カテゴリがあり、どの模型台にも置けるが、どの台にも責任を持たない『迷子小物』が量産されていました。",
+            "scenes": [
+              {
+                "title": "AS-IS場面1: プラン作者が term と書いて迷子小物が増える",
+                "actor": "plan-author",
+                "action": "プラン作者は『DB ってあとで考えればいいや』と思い、<code>type: \"term\"</code> を選んで小物リスト (<a href=\"#glossary:glossary-array\">glossary 配列</a>) に投入する。これを実際に保存するのが <a href=\"#glossary:sensei-skill\">sensei スキル</a>。",
+                "result": "<a href=\"#glossary:plan-viewer\">案内係</a> はこの小物をどの模型台に置けばいいか判断できず、全部まとめて雑多な棚に並べていた。",
+                "edgeRefs": [
+                  1,
+                  2
+                ]
+              },
+              {
+                "title": "AS-IS場面2: edge の出発点と到着点でレイヤーが噛み合わない",
+                "actor": "plan-author",
+                "action": "プラン作者は『term 同士なら何でもつなげる』と勘違いし、Context 図に DB の小物を出発点とする矢印を貼ってしまう。これは本来 Container 図に置くべき関係だった。",
+                "result": "<a href=\"#glossary:plan-viewer\">案内係</a> は静かに矢印を受け入れ、Context 模型台の中に DB が紛れ込んだまま展示される。来場者は混乱する。",
+                "edgeRefs": [
+                  3
+                ]
+              }
+            ],
+            "architectureDiagrams": {
+              "context": {
+                "edges": [
+                  {
+                    "order": 1,
+                    "source": "plan-author",
+                    "target": "c4-model",
+                    "label": "C4 を意識せずに glossary を書く",
+                    "data": "type=term の迷子小物",
+                    "edgeStyle": "dashed"
+                  },
+                  {
+                    "order": 3,
+                    "source": "plan-author",
+                    "target": "reader",
+                    "label": "Context に DB を混ぜた図を見せる",
+                    "data": "誤った関係",
+                    "edgeStyle": "dashed",
+                    "animated": true
+                  }
+                ]
+              },
+              "container": {
+                "edges": [
+                  {
+                    "order": 2,
+                    "source": "sensei-skill",
+                    "target": "plan-json",
+                    "label": "term 型のまま素通しで保存",
+                    "data": "未分類アイテム",
+                    "edgeStyle": "dashed"
+                  }
+                ]
+              }
+            }
+          },
+          "proposedState": {
+            "storyTitle": "TO-BE: 改修後は『type を選んだ瞬間に置き場所が確定する』",
+            "takeaway": "改修後は <code>type: \"db\"</code> と書いた瞬間、<a href=\"#glossary:type-to-layer-map\">GLOSSARY_TYPE_TO_LAYER</a> が <code>db → container</code> を返し、その小物は強制的に Container 模型台に載ります。<a href=\"#glossary:plan-author\">プラン作者</a> の悩む余地がなくなりました。",
+            "scenes": [
+              {
+                "title": "TO-BE場面1: プラン作者は 11 種から 1 つを選ぶだけ",
+                "actor": "plan-author",
+                "action": "プラン作者は <a href=\"#glossary:glossary-type-enum\">GlossaryType</a> の 11 種を見て、認証 DB なら <code>type: \"db\"</code> を選ぶ。これは Container レイヤーの『小物カテゴリ』。実際に保存処理を担うのは <a href=\"#glossary:sensei-skill\">sensei スキル</a>。",
+                "result": "<a href=\"#glossary:plan-json\">plan.json</a> に <code>{ id: \"auth-db\", type: \"db\", ... }</code> が書き込まれる。type を 1 つ書いたことで、置き場所が暗黙に確定する。",
+                "edgeRefs": [
+                  1,
+                  2
+                ],
+                "evidence": [
+                  {
+                    "label": "11 種の type 定義",
+                    "path": "plan-viewer/src/types.ts",
+                    "startLine": 3,
+                    "endLine": 18,
+                    "codeSnippets": {
+                      "language": "ts",
+                      "path": "plan-viewer/src/types.ts",
+                      "startLine": 3,
+                      "endLine": 18,
+                      "label": "GlossaryType (11 種)",
+                      "code": [
+                        "export type GlossaryType =",
+                        "  // Context layer",
+                        "  | 'person'",
+                        "  | 'external-system'",
+                        "  // Container layer",
+                        "  | 'client'",
+                        "  | 'server'",
+                        "  | 'cloud-service'",
+                        "  | 'db'",
+                        "  // Component layer",
+                        "  | 'class'",
+                        "  | 'module'",
+                        "  // Code layer",
+                        "  | 'function'",
+                        "  | 'table'",
+                        "  | 'interface'"
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "title": "TO-BE場面2: c4.ts の対応表が type を模型台に変換する",
+                "actor": "plan-viewer",
+                "action": "これは <a href=\"#glossary:plan-viewer\">plan-viewer</a> (Container) の内側の話。<a href=\"#glossary:c4-util\">c4.ts (レイヤー定義)</a> モジュールが、<a href=\"#glossary:glossary-array\">glossary 配列</a> の各アイテムの type を <a href=\"#glossary:type-to-layer-map\">GLOSSARY_TYPE_TO_LAYER</a> で引き、所属レイヤーを決める。",
+                "result": "<code>db</code> は <code>container</code> に写像され、<a href=\"#glossary:architecture-diagrams\">architectureDiagrams</a> の Container 図にしか出てこれないことが確定する。",
+                "edgeRefs": [
+                  3
+                ],
+                "evidence": [
+                  {
+                    "label": "type → layer の固定マップ",
+                    "path": "plan-viewer/src/utils/c4.ts",
+                    "startLine": 5,
+                    "endLine": 21,
+                    "codeSnippets": {
+                      "language": "ts",
+                      "path": "plan-viewer/src/utils/c4.ts",
+                      "startLine": 5,
+                      "endLine": 21,
+                      "label": "GLOSSARY_TYPE_TO_LAYER",
+                      "code": [
+                        "export const GLOSSARY_TYPE_TO_LAYER: Record<GlossaryType, C4Layer> = {",
+                        "  'person': 'context',",
+                        "  'external-system': 'context',",
+                        "  'client': 'container',",
+                        "  'server': 'container',",
+                        "  'cloud-service': 'container',",
+                        "  'db': 'container',",
+                        "  'class': 'component',",
+                        "  'module': 'component',",
+                        "  'function': 'code',",
+                        "  'table': 'code',",
+                        "  'interface': 'code',",
+                        "}"
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "title": "TO-BE場面3: 違反は normalizePlan が起動時に弾く",
+                "actor": "normalize-plan",
+                "action": "これは <a href=\"#glossary:plan-viewer\">plan-viewer</a> (Container) の中の、さらに <a href=\"#glossary:normalize-plan\">normalizePlan</a> モジュール (Component) の内側の話。万一プラン作者が Context 図に <code>db</code> の小物を出発点とする矢印を貼ったら、検品係 (<a href=\"#glossary:collect-layer-violations\">collectLayerViolations</a>) が即座に気付く。",
+                "result": "ビューアは描画前に赤いエラーバナーを出して止まる。来場者は壊れた展示を見ずに済む。",
+                "edgeRefs": [
+                  4
+                ]
+              }
+            ],
+            "architectureDiagrams": {
+              "context": {
+                "edges": [
+                  {
+                    "order": 1,
+                    "source": "plan-author",
+                    "target": "c4-model",
+                    "label": "11 種から 1 つを選ぶ",
+                    "data": "type 宣言"
+                  }
+                ]
+              },
+              "container": {
+                "edges": [
+                  {
+                    "order": 2,
+                    "source": "sensei-skill",
+                    "target": "plan-json",
+                    "label": "type=db で書き込む",
+                    "data": "{ id, type: 'db', name, ... }"
+                  }
+                ]
+              },
+              "component": {
+                "edges": [
+                  {
+                    "order": 3,
+                    "source": "c4-util",
+                    "target": "architecture-diagrams",
+                    "label": "db → container に写像",
+                    "data": "所属レイヤー: container",
+                    "animated": true
+                  },
+                  {
+                    "order": 4,
+                    "source": "normalize-plan",
+                    "target": "architecture-diagrams",
+                    "label": "違反を検出して throw",
+                    "data": "LayerViolation[]"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "title": "ペア3: 模型台ごとの矢印テープ — architectureDiagrams が 4 レイヤーに分かれた",
+      "takeaway": "このペアを読み終わると、プラン作者は『1 つの example の中で、矢印テープをどの模型台にどう貼り、order 番号をどう振るか』を自分で書けるようになります。",
+      "safeguards": [
+        "<a href=\"#glossary:edge-order\">order</a> は 1 つの state (currentState または proposedState) 内で 1..N の重複なし連番です。Context の最後が 2 で、Container の最初が 3、というふうに台をまたいで連番にします。",
+        "scene の <code>edgeRefs</code> はこの state 内のどのレイヤーの edge でも指せます (番号空間が共通だから)。layer をまたいだ物語を 1 つの scene でつなげられます。",
+        "4 枚すべて必須ではありません。必要なレイヤーだけ <code>architectureDiagrams</code> に書けばよく、空の図は描画されません。ただし『1 レイヤーだけのプラン』は SKILL.md で禁止されているので、最低 2 レイヤー使ってください。",
+        "edge の <code>source</code> と <code>target</code> は、その edge が属する図のレイヤーに対応する type を持つ glossary でなければなりません。<a href=\"#glossary:collect-layer-violations\">collectLayerViolations</a> がここを照合します。"
+      ],
+      "examples": [
+        {
+          "title": "例3: 1 つの state で Container → Component → Code をズームインで書く",
+          "condition": "プラン作者が『来場者が plan.html を開いた直後にどう描画されるか』を 1 つの proposedState にまとめて書こうとしている。",
+          "currentState": {
+            "storyTitle": "AS-IS: 改修前は『1 枚の architectureDiagram に全部』だった",
+            "takeaway": "改修前は <a href=\"#glossary:plan-json\">plan.json</a> の各 state に <code>architectureDiagram</code> (単数) が 1 つだけあり、そこに Container の話も Code の話も同居していました。レイヤーの区別はキーではなく『プラン作者の頭の中』にしかありませんでした。",
+            "scenes": [
+              {
+                "title": "AS-IS場面1: 1 枚の図に server も function も同居する",
+                "actor": "plan-author",
+                "action": "プラン作者は <code>architectureDiagram.edges</code> (単数) に矢印を全部投入する。order=1 が『<a href=\"#glossary:plan-viewer\">plan-viewer</a> が JSON を読む』(Container 級)、order=2 がいきなり『<a href=\"#glossary:validate-references\">validateReferences()</a> 関数の中の if 文』(Code 級) で、来場者の視点が乱高下する。",
+                "result": "来場者は『今どの粒度の話?』を考え続けることになり、ズームの感覚が掴めない。",
+                "edgeRefs": [
+                  1,
+                  2
+                ]
+              },
+              {
+                "title": "AS-IS場面2: 矢印の source/target が型を超えてもチェックがない",
+                "actor": "plan-viewer",
+                "action": "<a href=\"#glossary:plan-viewer\">案内係</a> も区別を持たないので、『person から function へ』のような飛び級の矢印を黙って受け入れる。意味は通らないが図は描かれる。",
+                "result": "型の整合性は完全にプラン作者の自律に依存し、誰も検品しない世界だった。",
+                "edgeRefs": [
+                  3
+                ]
+              }
+            ],
+            "architectureDiagrams": {
+              "container": {
+                "edges": [
+                  {
+                    "order": 1,
+                    "source": "plan-viewer",
+                    "target": "plan-json",
+                    "label": "JSON を読む (Container 級)",
+                    "data": "plan.json",
+                    "edgeStyle": "dashed"
+                  },
+                  {
+                    "order": 3,
+                    "source": "plan-viewer",
+                    "target": "plan-html",
+                    "label": "型を超えた矢印も通す",
+                    "data": "未検証",
+                    "edgeStyle": "dashed"
+                  }
+                ]
+              },
+              "code": {
+                "edges": [
+                  {
+                    "order": 2,
+                    "source": "validate-references",
+                    "target": "edge-order",
+                    "label": "いきなり関数内部の話",
+                    "data": "if (sorted[i] !== i + 1)",
+                    "edgeStyle": "dashed"
+                  }
+                ]
+              }
+            }
+          },
+          "proposedState": {
+            "storyTitle": "TO-BE: 改修後は『architectureDiagrams が 4 レイヤーのオブジェクトになる』",
+            "takeaway": "改修後は <code>state.architectureDiagrams</code> が <code>{ context, container, component, code }</code> の 4 キーを持つオブジェクトになり、プラン作者は粒度を意識しながら矢印を貼ることになります。order は state 内で 1..N の連番として全レイヤーを貫きます。",
+            "scenes": [
+              {
+                "title": "TO-BE場面1: Container 模型台に『plan-viewer が plan.json を読む』を貼る",
+                "actor": "plan-viewer",
+                "action": "これは <a href=\"#glossary:browser\">ブラウザ</a> (Context) の中の話。プラン作者は <code>architectureDiagrams.container.edges</code> に order=1 の矢印を貼る。出発点は <a href=\"#glossary:plan-viewer\">plan-viewer</a> (client)、到着点は <a href=\"#glossary:plan-json\">plan.json</a> (db)。両方とも Container レイヤーの type なので OK。",
+                "result": "来場者は『建物単位でどれがどれを読むか』を Container 模型台で把握する。",
+                "edgeRefs": [
+                  1
+                ]
+              },
+              {
+                "title": "TO-BE場面2: Component 模型台に『normalizePlan が architectureDiagrams を検品する』を貼る",
+                "actor": "normalize-plan",
+                "action": "これは <a href=\"#glossary:plan-viewer\">plan-viewer</a> (Container) の中の、さらに内側の話。プラン作者は order=2 の矢印を <code>architectureDiagrams.component.edges</code> に貼り、出発点 <a href=\"#glossary:normalize-plan\">normalizePlan</a> (module)、到着点 <a href=\"#glossary:architecture-diagrams\">architectureDiagrams</a> (module) とする。",
+                "result": "来場者は Container でズーム済みの『plan-viewer 内部』をさらに掘り下げて、検品係の存在を理解する。",
+                "edgeRefs": [
+                  2
+                ]
+              },
+              {
+                "title": "TO-BE場面3: Code 模型台に『validateReferences が order の連番を確認する』を貼る",
+                "actor": "validate-references",
+                "action": "これは <a href=\"#glossary:normalize-plan\">normalizePlan</a> モジュール (Component) のさらに内側の話。プラン作者は order=3 の矢印を <code>architectureDiagrams.code.edges</code> に貼り、出発点 <a href=\"#glossary:validate-references\">validateReferences()</a> (function)、到着点 <a href=\"#glossary:edge-order\">order (連番ルール)</a> (function) とする。",
+                "result": "来場者は『state 内で order が 1..N 連番』というルールが、どの関数によって守られているかをコードレベルで掴む。",
+                "edgeRefs": [
+                  3
+                ],
+                "evidence": [
+                  {
+                    "label": "order が 1..N 連番でなければ違反",
+                    "path": ".apm/skills/sensei/scripts/lib/plan-schema.zod.mjs",
+                    "startLine": 322,
+                    "endLine": 333,
+                    "codeSnippets": {
+                      "language": "js",
+                      "path": ".apm/skills/sensei/scripts/lib/plan-schema.zod.mjs",
+                      "startLine": 322,
+                      "endLine": 333,
+                      "label": "1..N の連番チェック",
+                      "code": [
+                        "if (orderSet.size > 0) {",
+                        "  const sorted = [...orderSet].sort((a, b) => a - b)",
+                        "  for (let i = 0; i < sorted.length; i++) {",
+                        "    if (sorted[i] !== i + 1) {",
+                        "      push(",
+                        "        `${statePath}.architectureDiagrams`,",
+                        "        `edge orders across layers must form 1..${sorted.length} (got [${sorted.join(', ')}])`,",
+                        "      )",
+                        "      break",
+                        "    }",
+                        "  }",
+                        "}"
+                      ]
+                    }
+                  }
+                ]
+              }
+            ],
+            "architectureDiagrams": {
+              "container": {
+                "edges": [
+                  {
+                    "order": 1,
+                    "source": "plan-viewer",
+                    "target": "plan-json",
+                    "label": "JSON を読む",
+                    "data": "<script id=plan-data>",
+                    "animated": true
+                  }
+                ]
+              },
+              "component": {
+                "edges": [
+                  {
+                    "order": 2,
+                    "source": "normalize-plan",
+                    "target": "architecture-diagrams",
+                    "label": "4 レイヤーを順に検品",
+                    "data": "ArchitectureDiagramsByLayer"
+                  }
+                ]
+              },
+              "code": {
+                "edges": [
+                  {
+                    "order": 3,
+                    "source": "validate-references",
+                    "target": "edge-order",
+                    "label": "order が 1..N か照合",
+                    "data": "orderSet → sorted"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
