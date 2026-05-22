@@ -9,7 +9,7 @@ const glossary: GlossaryItem[] = [
   { id: 'root', type: 'server', name: 'Root', description: '' },
   {
     id: 'child',
-    type: 'term',
+    type: 'class',
     name: 'Child',
     description: 'Child glossary description',
     analogy: 'Ask <a href="#glossary:root">Root</a> first',

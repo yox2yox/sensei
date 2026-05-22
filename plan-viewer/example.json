@@ -1,6 +1,6 @@
 {
   "title": "認証システム刷新プラン",
-  "description": "セッションベースからJWT認証への移行。複雑なフロー全体を「ログイン」「API 呼び出し」の2ペアに分割して表示することで、各ダイアグラムを読みやすく保つ。",
+  "description": "セッションベースから JWT 認証への移行。C4 モデルの 4 つのレイヤーで構成を分割し、システムコンテキスト・コンテナ・コンポーネント・コードの各視点で読めるようにする。",
   "metaphor": {
     "title": "ホテルの受付と部屋キー",
     "description": "ログインをホテルのチェックイン、認証トークンを部屋キーとして読む。受付係が本人確認をして、滞在中に使える鍵を渡す流れとして全体を追う。"
@@ -8,233 +8,75 @@
   "takeaway": "受付で本人確認を済ませたら、以後は部屋キーを見せるだけで各サービスに案内してもらう。",
   "glossary": [
     {
-      "id": "backend",
-      "type": "server",
-      "name": "バックエンド",
-      "description": "サーバーサイドの処理を担当するレイヤー",
-      "icon": "🖥️",
-      "persona": "ホテルの裏方チーム",
-      "analogy": "宿泊手続きを支える事務所",
-      "responsibility": "本人確認、鍵の発行、各サービスへの取り次ぎを担当する"
+      "id": "guest",
+      "type": "person",
+      "name": "宿泊者",
+      "description": "認証システムを利用するエンドユーザー。ホテルにとっての宿泊客にあたる。",
+      "icon": "🧑",
+      "analogy": "ホテルにチェックインする客"
     },
     {
-      "id": "user-auth",
-      "type": "class",
-      "name": "ユーザー認証",
-      "description": "ログイン・ログアウト・パスワードリセットを担当するモジュール",
-      "icon": "🔐",
-      "parentId": "backend",
-      "persona": "受付係",
-      "analogy": "チェックインカウンター",
-      "responsibility": "宿泊者が本人か確認し、鍵を発行できる状態にする"
-    },
-    {
-      "id": "auth-validator",
-      "type": "function",
-      "name": "資格情報検証",
-      "description": "パスワードハッシュの照合など、クレデンシャルの検証を専任で行うサブモジュール（3階層目の表示例）",
-      "icon": "✅",
-      "parentId": "user-auth"
-    },
-    {
-      "id": "token-issuer",
-      "type": "function",
-      "name": "トークン発行",
-      "description": "検証済みユーザーに対して JWT を発行するサブモジュール（3階層目の表示例）",
-      "icon": "🎟️",
-      "parentId": "user-auth",
-      "persona": "鍵を作る係",
-      "analogy": "カードキー発行機",
-      "responsibility": "本人確認済みの利用者に、以後使う認証トークンを渡す",
-      "codeSnippets": [
-        {
-          "language": "ts",
-          "label": "JWT 発行のコア",
-          "path": "src/auth/tokenIssuer.ts",
-          "startLine": 12,
-          "endLine": 24,
-          "code": [
-            "export function issueToken(user: User): string {",
-            "  const payload = {",
-            "    sub: user.id,",
-            "    iat: Math.floor(Date.now() / 1000),",
-            "    exp: Math.floor(Date.now() / 1000) + 60 * 60,",
-            "  }",
-            "  return jwt.sign(payload, SECRET, { algorithm: 'HS256' })",
-            "}"
-          ]
-        },
-        {
-          "language": "ts",
-          "label": "呼び出し側",
-          "code": "const token = issueToken(verifiedUser)\nres.json({ token })"
-        }
-      ]
-    },
-    {
-      "id": "user-service",
-      "type": "server",
-      "name": "ユーザーサービス",
-      "description": "ユーザー情報のCRUDを提供するマイクロサービス",
-      "icon": "👤",
-      "parentId": "backend",
-      "codeSnippets": [
-        {
-          "language": "python",
-          "label": "ユーザー取得 (Python)",
-          "code": [
-            "@app.get('/users/{user_id}')",
-            "def get_user(user_id: int) -> User:",
-            "    user = db.session.query(User).filter_by(id=user_id).first()",
-            "    if user is None:",
-            "        raise HTTPException(status_code=404, detail='User not found')",
-            "    return user"
-          ]
-        },
-        {
-          "language": "go",
-          "label": "ユーザー取得 (Go)",
-          "code": [
-            "func GetUser(w http.ResponseWriter, r *http.Request) {",
-            "    id := chi.URLParam(r, \"id\")",
-            "    user, err := repo.FindByID(r.Context(), id)",
-            "    if err != nil {",
-            "        http.Error(w, \"not found\", http.StatusNotFound)",
-            "        return",
-            "    }",
-            "    json.NewEncoder(w).Encode(user)",
-            "}"
-          ]
-        },
-        {
-          "language": "kotlin",
-          "label": "ユーザー取得 (Kotlin)",
-          "code": [
-            "@GetMapping(\"/users/{id}\")",
-            "fun getUser(@PathVariable id: Long): UserDto {",
-            "    return userRepository.findById(id)",
-            "        .map { it.toDto() }",
-            "        .orElseThrow { NotFoundException(\"user $id\") }",
-            "}"
-          ]
-        },
-        {
-          "language": "php",
-          "label": "ユーザー取得 (PHP)",
-          "code": [
-            "<?php",
-            "public function show(int $id): JsonResponse",
-            "{",
-            "    $user = User::find($id);",
-            "    if (!$user) {",
-            "        return response()->json(['error' => 'not found'], 404);",
-            "    }",
-            "    return response()->json($user);",
-            "}"
-          ]
-        },
-        {
-          "language": "yaml",
-          "label": "OpenAPI 抜粋",
-          "code": [
-            "paths:",
-            "  /users/{id}:",
-            "    get:",
-            "      summary: Get user by id",
-            "      parameters:",
-            "        - name: id",
-            "          in: path",
-            "          required: true",
-            "          schema:",
-            "            type: integer",
-            "      responses:",
-            "        '200':",
-            "          description: OK"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "api-gateway",
-      "type": "server",
-      "name": "APIゲートウェイ",
-      "description": "外部からのリクエストを受け付け、内部サービスにルーティングする",
-      "icon": "🌐",
-      "parentId": "backend",
-      "persona": "玄関の案内係",
-      "analogy": "ホテル入口のコンシェルジュ",
-      "responsibility": "外から来た依頼を受け、正しい担当窓口へ案内する"
-    },
-    {
-      "id": "token-verifier",
-      "type": "function",
-      "name": "トークン検証",
-      "description": "受信リクエストに付与された認証トークンを検証する",
-      "icon": "🔎",
-      "parentId": "api-gateway"
+      "id": "identity-provider",
+      "type": "external-system",
+      "name": "外部IdP",
+      "description": "外部の ID プロバイダ。今回は宿泊者が事前に発行された資格情報を使ってログインする想定。",
+      "icon": "🛰️",
+      "analogy": "宿泊者が事前に作った会員カード"
     },
     {
       "id": "frontend",
       "type": "client",
       "name": "フロントエンド",
-      "description": "ブラウザ上で動作するユーザー向けアプリケーション",
+      "description": "ブラウザ上で動作する SPA。資格情報の入力からダッシュボードの表示まで担う。",
       "icon": "💻",
-      "codeSnippets": [
-        {
-          "language": "react",
-          "label": "ログインフォーム (React/JSX)",
-          "code": [
-            "function LoginForm({ onSubmit }) {",
-            "  const [email, setEmail] = useState('')",
-            "  const [password, setPassword] = useState('')",
-            "  return (",
-            "    <form onSubmit={() => onSubmit({ email, password })}>",
-            "      <input value={email} onChange={(e) => setEmail(e.target.value)} />",
-            "      <input type=\"password\" value={password} onChange={(e) => setPassword(e.target.value)} />",
-            "      <button type=\"submit\">ログイン</button>",
-            "    </form>",
-            "  )",
-            "}"
-          ]
-        },
-        {
-          "language": "vue",
-          "label": "ログインフォーム (Vue SFC)",
-          "code": [
-            "<template>",
-            "  <form @submit.prevent=\"submit\">",
-            "    <input v-model=\"email\" />",
-            "    <input v-model=\"password\" type=\"password\" />",
-            "    <button type=\"submit\">ログイン</button>",
-            "  </form>",
-            "</template>",
-            "",
-            "<script setup lang=\"ts\">",
-            "import { ref } from 'vue'",
-            "const email = ref('')",
-            "const password = ref('')",
-            "const submit = () => emit('submit', { email: email.value, password: password.value })",
-            "</script>"
-          ]
-        }
-      ]
+      "analogy": "チェックイン用紙と部屋キーを持ち歩く宿泊客の手帳"
+    },
+    {
+      "id": "api-gateway",
+      "type": "server",
+      "name": "APIゲートウェイ",
+      "description": "外部からのリクエストを受け付け、内部サービスへルーティングする入口。",
+      "icon": "🌐",
+      "analogy": "ホテル入口のコンシェルジュ"
+    },
+    {
+      "id": "auth-service",
+      "type": "server",
+      "name": "認証サービス",
+      "description": "資格情報の検証とトークン発行を担当するバックエンドサービス。",
+      "icon": "🔐",
+      "analogy": "チェックインカウンター"
+    },
+    {
+      "id": "user-service",
+      "type": "server",
+      "name": "ユーザーサービス",
+      "description": "ユーザー情報の CRUD を提供するマイクロサービス。",
+      "icon": "👤",
+      "analogy": "宿泊予約と顧客情報を扱う事務"
+    },
+    {
+      "id": "auth-db",
+      "type": "db",
+      "name": "認証DB",
+      "description": "セッションやユーザー資格情報を永続化するデータベース。",
+      "icon": "💾",
+      "analogy": "宿泊台帳と鍵を保管する金庫室"
     },
     {
       "id": "login-page",
-      "type": "client",
+      "type": "module",
       "name": "ログインページ",
-      "description": "ユーザーが資格情報を入力する画面",
+      "description": "フロントエンド内の、資格情報を入力する画面コンポーネント。",
       "icon": "🔑",
       "parentId": "frontend",
-      "persona": "宿泊者",
-      "analogy": "チェックイン用紙を書くお客さん",
-      "responsibility": "メールアドレスやパスワードを入力して受付へ渡す"
+      "analogy": "宿泊者がカウンターで書き込む用紙"
     },
     {
       "id": "dashboard",
-      "type": "client",
+      "type": "module",
       "name": "ダッシュボード",
-      "description": "ログイン後のトップ画面。各種APIを呼び出して情報を表示する",
+      "description": "ログイン後のトップ画面。各種 API を呼び出して情報を表示する。",
       "icon": "📊",
       "parentId": "frontend"
     },
@@ -242,340 +84,475 @@
       "id": "http-client",
       "type": "class",
       "name": "HTTPクライアント",
-      "description": "バックエンドへのリクエスト送受信を統括するSDK層",
+      "description": "バックエンドへのリクエスト送受信を統括する SDK レイヤー。",
       "icon": "📡",
       "parentId": "frontend"
     },
     {
-      "id": "data-layer",
-      "type": "db",
-      "name": "認証DB",
-      "description": "永続化される認証データの管理レイヤー",
-      "icon": "💾"
+      "id": "auth-controller",
+      "type": "class",
+      "name": "AuthController",
+      "description": "ログイン要求を受け、検証と発行を順番に呼び出す入口クラス。",
+      "icon": "🎛️",
+      "parentId": "auth-service",
+      "analogy": "受付内の段取りを采配するベテラン"
     },
     {
-      "id": "session",
+      "id": "auth-validator",
+      "type": "function",
+      "name": "資格情報検証",
+      "description": "パスワードハッシュの照合など、クレデンシャル検証を専任で行う関数。",
+      "icon": "✅",
+      "parentId": "auth-controller"
+    },
+    {
+      "id": "token-issuer",
+      "type": "function",
+      "name": "トークン発行",
+      "description": "検証済みユーザーに対して JWT を発行する関数。",
+      "icon": "🎟️",
+      "parentId": "auth-controller",
+      "analogy": "カードキー発行機",
+      "responsibility": "本人確認済みの利用者に、以後使う認証トークンを渡す",
+      "evidence": [
+        {
+          "path": "src/auth/tokenIssuer.ts",
+          "startLine": 12,
+          "endLine": 24,
+          "label": "JWT 発行のコア",
+          "codeSnippets": {
+            "language": "ts",
+            "code": [
+              "export function issueToken(user: User): string {",
+              "  const payload = {",
+              "    sub: user.id,",
+              "    iat: Math.floor(Date.now() / 1000),",
+              "    exp: Math.floor(Date.now() / 1000) + 60 * 60,",
+              "  }",
+              "  return jwt.sign(payload, SECRET, { algorithm: 'HS256' })",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "token-verifier",
+      "type": "function",
+      "name": "トークン検証",
+      "description": "受信リクエストに付与された認証トークンを検証する関数。",
+      "icon": "🔎",
+      "parentId": "api-gateway"
+    },
+    {
+      "id": "session-table",
       "type": "table",
-      "name": "セッション",
-      "description": "サーバーサイドで管理するユーザーセッション情報",
+      "name": "session テーブル",
+      "description": "サーバーサイドで管理するユーザーセッション情報を保持するテーブル。",
       "icon": "🗂️",
-      "parentId": "data-layer"
+      "parentId": "auth-db"
+    },
+    {
+      "id": "user-table",
+      "type": "table",
+      "name": "user テーブル",
+      "description": "ユーザーの基本情報（メール、パスワードハッシュ等）を保持するテーブル。",
+      "icon": "📒",
+      "parentId": "auth-db"
     },
     {
       "id": "jwt-token",
-      "type": "term",
-      "name": "JWTトークン",
-      "description": "クライアントサイドで保持するJSONウェブトークン",
+      "type": "interface",
+      "name": "JwtToken",
+      "description": "クライアントで保持する JSON Web Token のデータ型。署名と有効期限を含む。",
       "icon": "🎫",
-      "parentId": "data-layer",
-      "persona": "部屋キー",
       "analogy": "滞在中に見せるカードキー",
-      "responsibility": "ログイン後のAPI呼び出しで本人確認の証明になる"
+      "responsibility": "ログイン後の API 呼び出しで本人確認の証明になる"
     }
   ],
   "pairs": [
     {
       "title": "ログインフロー",
-      "description": "資格情報を検証し、認証トークンを発行してクライアントへ配信するまで。",
-      "comparison": [
-        {
-          "label": "鍵の置き場所",
-          "current": "受付側がセッションを持ち、利用者にはセッションIDだけを渡す",
-          "proposed": "利用者側がJWTという部屋キーを持つ",
-          "note": "受付に毎回台帳を探してもらう方式から、鍵そのものを確認する方式に変わる"
-        },
-        {
-          "label": "発行担当",
-          "current": "ユーザー認証が検証からセッション発行までまとめて担当する",
-          "proposed": "資格情報検証とトークン発行を分ける",
-          "note": "単にセッションIDをJWTに置き換えるだけだと、受付係の仕事が増えたままになる"
-        }
-      ],
-      "currentState": {
-        "description": "サーバーサイドセッションを使用。Cookie 経由でセッション ID を配布する。",
-        "storyTitle": "現状: 受付が台帳を預かるチェックイン",
-        "scenes": [
-          {
-            "title": "場面1: 宿泊者が受付へ申し込む",
-            "actor": "login-page",
-            "action": "宿泊者がチェックイン用紙として資格情報を入力し、玄関の案内係へ渡す。",
-            "result": "案内係は受付係へ本人確認を依頼する。",
-            "edgeRefs": [
-              1,
-              2
-            ]
-          },
-          {
-            "title": "場面2: 受付係が本人確認をする",
-            "actor": "user-auth",
-            "action": "受付係が資格情報検証係とユーザーサービスに確認し、宿泊者が本当に登録済みか調べる。",
-            "result": "確認できたら受付側の台帳にセッションを作る準備が整う。",
-            "edgeRefs": [
-              3,
-              4
-            ]
-          },
-          {
-            "title": "場面3: 台帳番号をCookieで渡す",
-            "actor": "api-gateway",
-            "action": "案内係がセッションIDをCookieとして宿泊者のブラウザに渡す。",
-            "result": "次回以降、受付側の台帳を見れば誰か分かる。",
-            "edgeRefs": [
-              5,
-              6
-            ]
-          }
-        ],
-        "takeaway": "現状は、宿泊者本人よりも受付側の台帳が主役になっている。",
-        "architectureEdges": [
-          {
-            "order": 1,
-            "source": "login-page",
-            "target": "api-gateway",
-            "label": "ログイン要求",
-            "data": "Credentials"
-          },
-          {
-            "order": 2,
-            "source": "api-gateway",
-            "target": "user-auth",
-            "label": "認証委譲",
-            "data": "Credentials"
-          },
-          {
-            "order": 3,
-            "source": "user-auth",
-            "target": "auth-validator",
-            "label": "資格検証",
-            "data": "Credentials"
-          },
-          {
-            "order": 4,
-            "source": "user-auth",
-            "target": "user-service",
-            "label": "ユーザー取得",
-            "data": "UserID"
-          },
-          {
-            "order": 5,
-            "source": "user-auth",
-            "target": "api-gateway",
-            "label": "セッション発行",
-            "data": "SessionID"
-          },
-          {
-            "order": 6,
-            "source": "api-gateway",
-            "target": "http-client",
-            "label": "Cookie設定",
-            "data": "SessionID"
-          }
-        ]
-      },
-      "proposedState": {
-        "description": "JWT 発行に変更。認証モジュール内に Validator / Issuer を分離。",
-        "storyTitle": "変更後: 受付が部屋キーを発行するチェックイン",
-        "scenes": [
-          {
-            "title": "場面1: 受付までは今まで通り",
-            "actor": "login-page",
-            "action": "宿泊者は同じように資格情報を出し、案内係が受付係へ回す。",
-            "result": "入口の動線は大きく変えず、内部の役割分担を変える。",
-            "edgeRefs": [
-              1,
-              2
-            ]
-          },
-          {
-            "title": "場面2: 確認係と鍵発行係に分かれる",
-            "actor": "user-auth",
-            "action": "受付係は本人確認を検証係に任せ、確認できたら鍵を作る係へ発行を依頼する。",
-            "result": "検証と発行の責任が分かれ、後から見てもどこで何をしているか追いやすい。",
-            "edgeRefs": [
-              3,
-              4,
-              5
-            ]
-          },
-          {
-            "title": "場面3: 部屋キーを宿泊者へ渡す",
-            "actor": "api-gateway",
-            "action": "案内係がJWTをHTTPクライアントへ返し、宿泊者は滞在中の部屋キーとして使う。",
-            "result": "次回以降は台帳番号ではなく、鍵そのものを見せて通れる。",
-            "edgeRefs": [
-              6,
-              7
-            ]
-          }
-        ],
-        "takeaway": "変更後は、部屋キーを持った宿泊者が自分で身分を示せる。",
-        "architectureEdges": [
-          {
-            "order": 1,
-            "source": "login-page",
-            "target": "api-gateway",
-            "label": "ログイン要求",
-            "data": "Credentials"
-          },
-          {
-            "order": 2,
-            "source": "api-gateway",
-            "target": "user-auth",
-            "label": "認証委譲",
-            "data": "Credentials"
-          },
-          {
-            "order": 3,
-            "source": "user-auth",
-            "target": "auth-validator",
-            "label": "資格検証",
-            "data": "Credentials"
-          },
-          {
-            "order": 4,
-            "source": "user-auth",
-            "target": "user-service",
-            "label": "ユーザー検索",
-            "data": "Email"
-          },
-          {
-            "order": 5,
-            "source": "user-auth",
-            "target": "token-issuer",
-            "label": "発行要求",
-            "data": "UserID"
-          },
-          {
-            "order": 6,
-            "source": "user-auth",
-            "target": "api-gateway",
-            "label": "JWT返却",
-            "data": "AuthToken"
-          },
-          {
-            "order": 7,
-            "source": "api-gateway",
-            "target": "http-client",
-            "label": "JWT配信",
-            "data": "AuthToken"
-          }
-        ]
-      },
+      "takeaway": "受付台帳方式から部屋キー方式へ。Container 図を入れ替えるだけでなく、Component / Code レイヤーで責務を分解しているのが本質。",
       "safeguards": [
-        "資格情報検証とトークン発行を分けることで、鍵の作成条件を一か所に閉じ込める",
-        "単なる名前変更ではなく、発行係を独立させることで後続の署名・期限・失効設計を追加しやすくする"
+        "資格情報検証とトークン発行を別関数に分け、鍵の作成条件を一か所に閉じ込める。",
+        "発行係を独立させ、後続の署名・期限・失効設計を追加しやすくする。"
       ],
-      "takeaway": "チェックインの入口はそのままに、受付台帳方式から部屋キー方式へ切り替える。"
+      "examples": [
+        {
+          "title": "通常ログイン",
+          "condition": "宿泊者が正しい資格情報を持ってログインする例。",
+          "currentState": {
+            "storyTitle": "現状: 受付が台帳を預かるチェックイン",
+            "takeaway": "受付台帳が主役で、宿泊者は番号札だけを持って動く。",
+            "scenes": [
+              {
+                "title": "場面1: 宿泊者がチェックインを依頼する",
+                "actor": "guest",
+                "action": "宿泊者がブラウザで <a href=\"#glossary:frontend\">フロントエンド</a> のログインページを開き、資格情報を入力する。",
+                "result": "資格情報が <a href=\"#glossary:api-gateway\">APIゲートウェイ</a> 経由でバックエンドへ届く。",
+                "edgeRefs": [
+                  1,
+                  2
+                ]
+              },
+              {
+                "title": "場面2: 受付係が本人確認をする",
+                "actor": "auth-controller",
+                "action": "<a href=\"#glossary:auth-controller\">AuthController</a> が <a href=\"#glossary:auth-validator\">資格情報検証</a> を呼び、<a href=\"#glossary:user-table\">user テーブル</a> を引いて本人かどうか確かめる。",
+                "result": "確認できたらセッションを発行する準備が整う。",
+                "edgeRefs": [
+                  3,
+                  4,
+                  5
+                ]
+              },
+              {
+                "title": "場面3: 台帳番号を渡す",
+                "actor": "auth-controller",
+                "action": "<a href=\"#glossary:auth-controller\">AuthController</a> が <a href=\"#glossary:session-table\">session テーブル</a> に行を作り、その ID を Cookie に詰めて返す。",
+                "result": "次回以降、台帳を引けば誰か分かる。",
+                "edgeRefs": [
+                  6,
+                  7
+                ]
+              }
+            ],
+            "architectureDiagrams": {
+              "context": {
+                "edges": [
+                  {
+                    "order": 1,
+                    "source": "guest",
+                    "target": "identity-provider",
+                    "label": "事前登録",
+                    "data": "Credentials"
+                  }
+                ]
+              },
+              "container": {
+                "edges": [
+                  {
+                    "order": 2,
+                    "source": "frontend",
+                    "target": "api-gateway",
+                    "label": "ログイン要求",
+                    "data": "Credentials"
+                  },
+                  {
+                    "order": 3,
+                    "source": "api-gateway",
+                    "target": "auth-service",
+                    "label": "認証委譲",
+                    "data": "Credentials"
+                  },
+                  {
+                    "order": 4,
+                    "source": "auth-service",
+                    "target": "user-service",
+                    "label": "ユーザー取得",
+                    "data": "Email"
+                  },
+                  {
+                    "order": 5,
+                    "source": "auth-service",
+                    "target": "auth-db",
+                    "label": "セッション保存",
+                    "data": "SessionID"
+                  }
+                ]
+              },
+              "component": {
+                "edges": [
+                  {
+                    "order": 6,
+                    "source": "login-page",
+                    "target": "http-client",
+                    "label": "送信依頼",
+                    "data": "Credentials"
+                  },
+                  {
+                    "order": 7,
+                    "source": "http-client",
+                    "target": "auth-controller",
+                    "label": "POST /login",
+                    "data": "Credentials"
+                  }
+                ]
+              },
+              "code": {
+                "edges": [
+                  {
+                    "order": 8,
+                    "source": "auth-validator",
+                    "target": "user-table",
+                    "label": "ユーザー検索",
+                    "data": "Email"
+                  },
+                  {
+                    "order": 9,
+                    "source": "auth-validator",
+                    "target": "session-table",
+                    "label": "セッション作成",
+                    "data": "SessionID"
+                  }
+                ]
+              }
+            }
+          },
+          "proposedState": {
+            "storyTitle": "変更後: 受付が部屋キーを発行するチェックイン",
+            "takeaway": "宿泊者が部屋キー（JWT）を持ち歩くので、台帳を引かなくて済む。",
+            "scenes": [
+              {
+                "title": "場面1: 受付までは今まで通り",
+                "actor": "guest",
+                "action": "宿泊者は同じように資格情報を出し、案内係が受付係へ回す。",
+                "result": "入口の動線は大きく変えず、内部の役割分担を変える。",
+                "edgeRefs": [
+                  2,
+                  3
+                ]
+              },
+              {
+                "title": "場面2: 確認係と鍵発行係に分かれる",
+                "actor": "auth-controller",
+                "action": "<a href=\"#glossary:auth-controller\">AuthController</a> は <a href=\"#glossary:auth-validator\">資格情報検証</a> に本人確認を任せ、確認できたら <a href=\"#glossary:token-issuer\">トークン発行</a> に <a href=\"#glossary:jwt-token\">JwtToken</a> を作らせる。",
+                "result": "検証と発行の責任が分かれ、後から見てもどこで何をしているか追いやすい。",
+                "edgeRefs": [
+                  8,
+                  9,
+                  10
+                ]
+              },
+              {
+                "title": "場面3: 部屋キーを宿泊者へ渡す",
+                "actor": "frontend",
+                "action": "<a href=\"#glossary:api-gateway\">APIゲートウェイ</a> が JWT を <a href=\"#glossary:frontend\">フロントエンド</a> へ返し、宿泊者は部屋キーとして保持する。",
+                "result": "次回以降は台帳を引かず、鍵そのものを見せて通れる。",
+                "edgeRefs": [
+                  5
+                ]
+              }
+            ],
+            "architectureDiagrams": {
+              "context": {
+                "edges": [
+                  {
+                    "order": 1,
+                    "source": "guest",
+                    "target": "identity-provider",
+                    "label": "事前登録",
+                    "data": "Credentials"
+                  }
+                ]
+              },
+              "container": {
+                "edges": [
+                  {
+                    "order": 2,
+                    "source": "frontend",
+                    "target": "api-gateway",
+                    "label": "ログイン要求",
+                    "data": "Credentials"
+                  },
+                  {
+                    "order": 3,
+                    "source": "api-gateway",
+                    "target": "auth-service",
+                    "label": "認証委譲",
+                    "data": "Credentials"
+                  },
+                  {
+                    "order": 4,
+                    "source": "auth-service",
+                    "target": "user-service",
+                    "label": "ユーザー検索",
+                    "data": "Email"
+                  },
+                  {
+                    "order": 5,
+                    "source": "api-gateway",
+                    "target": "frontend",
+                    "label": "JWT返却",
+                    "data": "AuthToken"
+                  }
+                ]
+              },
+              "component": {
+                "edges": [
+                  {
+                    "order": 6,
+                    "source": "login-page",
+                    "target": "http-client",
+                    "label": "送信依頼",
+                    "data": "Credentials"
+                  },
+                  {
+                    "order": 7,
+                    "source": "http-client",
+                    "target": "auth-controller",
+                    "label": "POST /login",
+                    "data": "Credentials"
+                  }
+                ]
+              },
+              "code": {
+                "edges": [
+                  {
+                    "order": 8,
+                    "source": "auth-validator",
+                    "target": "user-table",
+                    "label": "ユーザー検索",
+                    "data": "Email"
+                  },
+                  {
+                    "order": 9,
+                    "source": "auth-validator",
+                    "target": "token-issuer",
+                    "label": "発行依頼",
+                    "data": "UserID"
+                  },
+                  {
+                    "order": 10,
+                    "source": "token-issuer",
+                    "target": "jwt-token",
+                    "label": "署名・発行",
+                    "data": "JwtToken"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
     },
     {
       "title": "認証済み API 呼び出し",
-      "description": "ログイン後にダッシュボードが API を呼び出すときの認証ヘッダ。",
-      "comparison": [
+      "takeaway": "Cookie の台帳引き方式から、毎回 JWT を見せる方式へ。Container と Code の両レイヤーで責務が変わる。",
+      "examples": [
         {
-          "label": "通行証",
-          "current": "Cookieに入ったセッションID",
-          "proposed": "Authorizationヘッダに入ったJWT",
-          "note": "ブラウザ任せのCookieから、API呼び出しごとに明示して見せるカードキーへ変わる"
+          "title": "ダッシュボード描画",
+          "condition": "ログイン済みの宿泊者がダッシュボードを開き、API を呼び出す例。",
+          "currentState": {
+            "storyTitle": "現状: 台帳番号でサービスを受ける",
+            "scenes": [
+              {
+                "title": "場面1: 宿泊者がサービスを依頼する",
+                "actor": "guest",
+                "action": "<a href=\"#glossary:dashboard\">ダッシュボード</a> から API を呼び、ブラウザが Cookie を自動添付する。",
+                "result": "案内係は Cookie の番号で台帳を引く。",
+                "edgeRefs": [
+                  1,
+                  2
+                ]
+              }
+            ],
+            "architectureDiagrams": {
+              "container": {
+                "edges": [
+                  {
+                    "order": 1,
+                    "source": "frontend",
+                    "target": "api-gateway",
+                    "label": "API呼び出し (Cookie)",
+                    "data": "SessionCookie"
+                  },
+                  {
+                    "order": 2,
+                    "source": "api-gateway",
+                    "target": "auth-db",
+                    "label": "セッション参照",
+                    "data": "SessionID"
+                  },
+                  {
+                    "order": 3,
+                    "source": "api-gateway",
+                    "target": "user-service",
+                    "label": "データ取得",
+                    "data": "UserID"
+                  }
+                ]
+              },
+              "code": {
+                "edges": [
+                  {
+                    "order": 4,
+                    "source": "token-verifier",
+                    "target": "session-table",
+                    "label": "セッション参照",
+                    "data": "SessionID"
+                  }
+                ]
+              }
+            }
+          },
+          "proposedState": {
+            "storyTitle": "変更後: 部屋キーを見せてサービスを受ける",
+            "takeaway": "API 呼び出しは、毎回カードキーを見せて通る形になる。",
+            "scenes": [
+              {
+                "title": "場面1: 宿泊者がカードキーを見せる",
+                "actor": "dashboard",
+                "action": "<a href=\"#glossary:dashboard\">ダッシュボード</a> が Authorization ヘッダに <a href=\"#glossary:jwt-token\">JwtToken</a> を載せて API を呼ぶ。",
+                "result": "案内係は Cookie ではなく、提示された鍵そのものを確認する。",
+                "edgeRefs": [
+                  1
+                ]
+              },
+              {
+                "title": "場面2: 署名確認係が鍵を検査する",
+                "actor": "token-verifier",
+                "action": "<a href=\"#glossary:token-verifier\">トークン検証</a> が JWT の署名を確認し、正しい鍵かどうか判断する。",
+                "result": "正しい鍵なら、ユーザーサービスへ案内できる。",
+                "edgeRefs": [
+                  2,
+                  3,
+                  4
+                ]
+              }
+            ],
+            "architectureDiagrams": {
+              "container": {
+                "edges": [
+                  {
+                    "order": 1,
+                    "source": "frontend",
+                    "target": "api-gateway",
+                    "label": "API呼び出し (Bearer)",
+                    "data": "Authorization"
+                  },
+                  {
+                    "order": 2,
+                    "source": "api-gateway",
+                    "target": "user-service",
+                    "label": "データ取得",
+                    "data": "UserID"
+                  }
+                ]
+              },
+              "code": {
+                "edges": [
+                  {
+                    "order": 3,
+                    "source": "token-verifier",
+                    "target": "jwt-token",
+                    "label": "署名検証",
+                    "data": "JwtToken"
+                  },
+                  {
+                    "order": 4,
+                    "source": "token-verifier",
+                    "target": "user-table",
+                    "label": "ユーザー特定",
+                    "data": "UserID"
+                  }
+                ]
+              }
+            }
+          }
         }
-      ],
-      "currentState": {
-        "description": "ブラウザが自動送信する Cookie でサーバーがセッションを参照する。",
-        "storyTitle": "現状: 台帳番号でサービスを受ける",
-        "scenes": [
-          {
-            "title": "場面1: 宿泊者が施設を使いたいと言う",
-            "actor": "dashboard",
-            "action": "宿泊者がダッシュボードからAPIを呼び、ブラウザがCookieを自動で添える。",
-            "result": "案内係はCookieの番号を手がかりに受付台帳を探す。",
-            "edgeRefs": [
-              1,
-              2
-            ]
-          },
-          {
-            "title": "場面2: 台帳から利用者を特定する",
-            "actor": "api-gateway",
-            "action": "案内係がセッションから利用者を確認し、ユーザーサービスへ必要なデータを取りに行く。",
-            "result": "サービスは受けられるが、受付台帳への依存が残る。",
-            "edgeRefs": [
-              3
-            ]
-          }
-        ],
-        "architectureEdges": [
-          {
-            "order": 1,
-            "source": "dashboard",
-            "target": "api-gateway",
-            "label": "API呼び出し",
-            "data": "Cookie"
-          },
-          {
-            "order": 2,
-            "source": "api-gateway",
-            "target": "session",
-            "label": "セッション参照",
-            "data": "SessionID"
-          },
-          {
-            "order": 3,
-            "source": "api-gateway",
-            "target": "user-service",
-            "label": "データ取得",
-            "data": "UserID"
-          }
-        ]
-      },
-      "proposedState": {
-        "description": "Authorization ヘッダに JWT を載せて送信し、ゲートウェイが署名検証する。",
-        "storyTitle": "変更後: 部屋キーを見せてサービスを受ける",
-        "scenes": [
-          {
-            "title": "場面1: 宿泊者がカードキーを見せる",
-            "actor": "dashboard",
-            "action": "ダッシュボードがAuthorizationヘッダにJWTを載せ、案内係へ見せる。",
-            "result": "案内係は台帳番号ではなく、カードキーそのものを確認できる。",
-            "edgeRefs": [
-              1
-            ]
-          },
-          {
-            "title": "場面2: 署名確認係が鍵を検査する",
-            "actor": "token-verifier",
-            "action": "トークン検証係がJWTの署名を確認し、正しい鍵かどうか判断する。",
-            "result": "正しい鍵なら、ユーザーサービスへ案内できる。",
-            "edgeRefs": [
-              2,
-              3
-            ]
-          }
-        ],
-        "takeaway": "API呼び出しは、毎回カードキーを見せて通る形になる。",
-        "architectureEdges": [
-          {
-            "order": 1,
-            "source": "dashboard",
-            "target": "api-gateway",
-            "label": "API呼び出し",
-            "data": "Authorization: Bearer"
-          },
-          {
-            "order": 2,
-            "source": "api-gateway",
-            "target": "token-verifier",
-            "label": "署名検証",
-            "data": "AuthToken"
-          },
-          {
-            "order": 3,
-            "source": "api-gateway",
-            "target": "user-service",
-            "label": "データ取得",
-            "data": "UserID"
-          }
-        ]
-      },
-      "takeaway": "ログイン後の通行確認は、受付台帳参照からカードキー確認へ移る。"
+      ]
     }
   ]
 }

@@ -1,12 +1,21 @@
+export type C4Layer = 'context' | 'container' | 'component' | 'code'
+
 export type GlossaryType =
-  | 'term'
+  // Context layer
+  | 'person'
+  | 'external-system'
+  // Container layer
   | 'client'
   | 'server'
   | 'cloud-service'
-  | 'class'
-  | 'function'
   | 'db'
+  // Component layer
+  | 'class'
+  | 'module'
+  // Code layer
+  | 'function'
   | 'table'
+  | 'interface'
 
 export interface GlossaryItem {
   id: string
@@ -64,9 +73,15 @@ export interface StoryScene {
   evidence?: Evidence[]
 }
 
-export interface FlowState {
-  architectureDiagram?: ArchitectureEdge[]
+export interface ArchitectureDiagram {
+  edges: ArchitectureEdge[]
   diagramOptions?: DiagramOptions
+}
+
+export type ArchitectureDiagramsByLayer = Partial<Record<C4Layer, ArchitectureDiagram>>
+
+export interface FlowState {
+  architectureDiagrams?: ArchitectureDiagramsByLayer
   storyTitle?: string
   scenes?: StoryScene[]
   takeaway?: string

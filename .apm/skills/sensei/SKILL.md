@@ -32,6 +32,8 @@ description: 実装計画、アーキテクチャ変更、前後比較、機能�
 1. プランを生成する
    plan.schema.jsonの構造に従ってプランを作成する。descriptionをよく読んでその内容に必ず従うこと。
 
+   特に注意: アーキテクチャ図は [C4 モデル](https://c4model.com/) の `context / container / component / code` の 4 レイヤーに分かれている。`glossary[].type` でレイヤーが一意に決まり、各 `architectureDiagrams.{layer}.edges` の source/target にはそのレイヤーに属する type の glossary しか指定できない。必要なレイヤーだけ図を描けばよく、4 枚すべて必須ではない。
+
 2. **ヘルパースクリプトに JSON を渡してファイルを生成する**。JSON ファイルのパスまたは stdin と、出力 basename を渡します。
 
    ```bash

@@ -30,8 +30,11 @@
 
   function diagramEdgeLabels(state: FlowState, edgeNumbers?: number[]): string[] {
     if (!edgeNumbers || edgeNumbers.length === 0) return []
+    const diagrams = state.architectureDiagrams
+    if (!diagrams) return []
+    const allEdges = Object.values(diagrams).flatMap((d) => d?.edges ?? [])
     return edgeNumbers
-      .map((order) => state.architectureDiagram?.find((edge) => edge.order === order))
+      .map((order) => allEdges.find((edge) => edge.order === order))
       .filter((edge): edge is NonNullable<typeof edge> => Boolean(edge))
       .map((edge) => {
         const source = actorName(edge.source) ?? edge.source
