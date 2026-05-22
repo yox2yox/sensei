@@ -1,0 +1,506 @@
+{
+  "title": "plan-viewer を C4 モデル準拠に再構成",
+  "description": "<a href=\"#glossary:plan-viewer\">plan-viewer</a> の glossary type とアーキテクチャ図を <a href=\"#glossary:c4-model\">C4 モデル</a> の 4 レイヤー (Context / Container / Component / Code) に整理する。`term` 型を廃止し、各 type をいずれかのレイヤーに固定マッピング。State は最大 4 枚のレイヤー別図を持ち、各図のソース/ターゲットには対応する type の <a href=\"#glossary:glossary-item\">GlossaryItem</a> しか指定できない。",
+  "metaphor": {
+    "title": "地図の縮尺を切り替える",
+    "description": "1 枚の地図に世界・国・街・家具をすべて描くと読めない。縮尺ごとに別の地図を用意し (世界地図・市街地図・間取り図・家具配置図)、各地図には「その縮尺で意味のある対象」だけを描く。C4 はこれと同じで、4 段階の縮尺それぞれに専用の図を用意する。"
+  },
+  "takeaway": "縮尺ごとに専用の地図を用意し、各地図には「その縮尺で意味のある対象」だけを置く。",
+  "glossary": [
+    {
+      "id": "developer",
+      "type": "person",
+      "name": "プラン作成者",
+      "icon": "🧑‍💻",
+      "description": "AI または人間が、設計プランの JSON を書く側。スキーマに沿って構造を埋める。",
+      "analogy": "地図を描く製図担当者"
+    },
+    {
+      "id": "c4-model",
+      "type": "external-system",
+      "name": "C4 モデル",
+      "icon": "🗺️",
+      "description": "Simon Brown が提唱したソフトウェアアーキテクチャ可視化モデル。Context / Container / Component / Code の 4 つのズームレベルで設計を描く。",
+      "analogy": "世界地図 → 国地図 → 街地図 → 間取り図の縮尺規格"
+    },
+    {
+      "id": "plan-viewer",
+      "type": "client",
+      "name": "plan-viewer",
+      "icon": "💻",
+      "description": "プラン JSON をブラウザで描画する Svelte 製 SPA。今回 C4 レイヤーごとに図を描き分けるように改修した。",
+      "analogy": "縮尺別に地図を並べてくれる地図帳アプリ"
+    },
+    {
+      "id": "apm-validator",
+      "type": "server",
+      "name": "apm validator スクリプト",
+      "icon": "🛠️",
+      "description": "`.apm/skills/sensei/scripts/validate_plan.mjs`。プラン JSON を JSON Schema と zod、参照整合性チェックで検証する Node CLI。",
+      "analogy": "図面の前に立つ検査官。寸法・凡例の規格違反を弾く"
+    },
+    {
+      "id": "types-module",
+      "type": "module",
+      "name": "types.ts",
+      "icon": "📐",
+      "parentId": "plan-viewer",
+      "description": "viewer の TypeScript 型定義。今回 `GlossaryType` を 11 種に整理し、`C4Layer` と `ArchitectureDiagrams` を追加した。",
+      "analogy": "地図の凡例集"
+    },
+    {
+      "id": "c4-module",
+      "type": "module",
+      "name": "utils/c4.ts",
+      "icon": "🧭",
+      "parentId": "plan-viewer",
+      "description": "今回新設した、type ↔ layer の対応表と補助関数を集めるモジュール。",
+      "analogy": "縮尺対応表（世界地図はこの記号、街地図はこの記号…）"
+    },
+    {
+      "id": "normalize-module",
+      "type": "module",
+      "name": "utils/normalize.ts",
+      "icon": "🧹",
+      "parentId": "plan-viewer",
+      "description": "プランを読み込み時に検証・整形するモジュール。今回 layer 違反検出を追加した。",
+      "analogy": "アプリ起動時に地図帳を検査する受付係"
+    },
+    {
+      "id": "arch-diagram-component",
+      "type": "class",
+      "name": "ArchitectureDiagram.svelte",
+      "icon": "🖼️",
+      "parentId": "plan-viewer",
+      "description": "アーキテクチャ図を描画するルートコンポーネント。今回 `layer` prop を受け取り、その layer の type に属する glossary だけを描画するようになった。",
+      "analogy": "渡された縮尺の地図 1 枚だけを描き上げる絵師"
+    },
+    {
+      "id": "app-component",
+      "type": "class",
+      "name": "App.svelte",
+      "icon": "🏠",
+      "parentId": "plan-viewer",
+      "description": "ルートコンポーネント。各 state について最大 4 枚の <a href=\"#glossary:arch-diagram-component\">ArchitectureDiagram</a> を順番に呼び出す。",
+      "analogy": "地図帳の編集者。縮尺順にページを並べる"
+    },
+    {
+      "id": "glossary-panel-component",
+      "type": "class",
+      "name": "GlossaryPanel.svelte",
+      "icon": "📚",
+      "parentId": "plan-viewer",
+      "description": "用語パネル。今回タブを C4 レイヤー単位 (Context / Container / Component / Code) に切り替えた。",
+      "analogy": "地図帳の索引。縮尺別の見出しで凡例をめくれる"
+    },
+    {
+      "id": "c4-layer-type",
+      "type": "interface",
+      "name": "C4Layer",
+      "icon": "🏷️",
+      "parentId": "types-module",
+      "description": "`'context' | 'container' | 'component' | 'code'` のリテラル合併型。プラン全体で唯一のレイヤー識別子。",
+      "analogy": "縮尺ラベル（世界・国・街・室内）"
+    },
+    {
+      "id": "glossary-type-type",
+      "type": "interface",
+      "name": "GlossaryType",
+      "icon": "🔤",
+      "parentId": "types-module",
+      "description": "glossary の種別。person / external-system / client / server / cloud-service / db / class / module / function / table / interface の 11 種。`term` は廃止。",
+      "analogy": "地図記号の集合（神社・学校・橋…）"
+    },
+    {
+      "id": "glossary-item",
+      "type": "interface",
+      "name": "GlossaryItem",
+      "icon": "📌",
+      "parentId": "types-module",
+      "description": "アーキテクチャに登場する人・要素・概念の単位データ。`type` から所属レイヤーが一意に決まる。",
+      "analogy": "地図に置く 1 つのアイコン"
+    },
+    {
+      "id": "arch-diagrams-type",
+      "type": "interface",
+      "name": "ArchitectureDiagrams",
+      "icon": "🗂️",
+      "parentId": "types-module",
+      "description": "`Partial<Record<C4Layer, { edges, diagramOptions? }>>`。state ごとに最大 4 枚のレイヤー別図を束ねる。",
+      "analogy": "地図帳の目次。縮尺ごとにページが入る"
+    },
+    {
+      "id": "flow-state-type",
+      "type": "interface",
+      "name": "FlowState",
+      "icon": "🌊",
+      "parentId": "types-module",
+      "description": "currentState / proposedState の中身。今回 `architectureDiagram` (単数) を <a href=\"#glossary:arch-diagrams-type\">ArchitectureDiagrams</a> に置き換えた。",
+      "analogy": "1 つの状態における地図帳の中身"
+    },
+    {
+      "id": "type-to-layer-map",
+      "type": "function",
+      "name": "GLOSSARY_TYPE_TO_LAYER",
+      "icon": "🧷",
+      "parentId": "c4-module",
+      "description": "type → C4Layer の固定マップ。client/server/cloud-service/db は container、class/module は component、function/table/interface は code、person/external-system は context。",
+      "analogy": "「神社マークは世界地図には載らない」と決める対応表"
+    },
+    {
+      "id": "collect-violations",
+      "type": "function",
+      "name": "collectLayerViolations",
+      "icon": "🔍",
+      "parentId": "normalize-module",
+      "description": "プラン全体を走査し、各レイヤー図の edge endpoint が「そのレイヤーの type」かを確認する関数。違反を `{ path, itemId, itemType, expectedLayer }` の配列で返す。",
+      "analogy": "縮尺と記号の組合せが正しいかチェックする検査員"
+    },
+    {
+      "id": "normalize-plan",
+      "type": "function",
+      "name": "normalizePlan",
+      "icon": "🚦",
+      "parentId": "normalize-module",
+      "description": "viewer のロード時に呼ばれるエントリ関数。<a href=\"#glossary:collect-violations\">collectLayerViolations</a> を呼び、違反が 1 件でもあれば throw して描画を止める。",
+      "analogy": "地図帳を開く前の最終チェッカー"
+    },
+    {
+      "id": "validate-references",
+      "type": "function",
+      "name": "validateReferences",
+      "icon": "📋",
+      "parentId": "apm-validator",
+      "description": "apm 側の参照整合性検証関数。今回、layer 違反検出と「state 内 order が 1..N を成すか」のチェックを追加。",
+      "analogy": "提出前に図面を見直す監査担当"
+    }
+  ],
+  "pairs": [
+    {
+      "title": "glossary type を C4 レイヤーに固定する",
+      "takeaway": "type を見ればどの縮尺の地図に載せるべきかが一発で決まる。`term` のような縮尺フリーな記号は廃止する。",
+      "safeguards": [
+        "type → layer マップは <a href=\"#glossary:c4-module\">utils/c4.ts</a> 1 箇所に集約し、viewer と apm の両方が同じ定義を参照する。",
+        "新しい type を追加するときは必ず `GLOSSARY_TYPE_TO_LAYER` にエントリを追加する（TypeScript の Record 型が抜けを検出する）。"
+      ],
+      "examples": [
+        {
+          "title": "type 体系の入れ替え",
+          "condition": "プラン作成者が glossary を書こうとしたとき、どの type を選ぶかで所属レイヤーが決まる。",
+          "currentState": {
+            "storyTitle": "AS-IS: 縮尺フリーな term があり、図はレイヤー混在",
+            "takeaway": "type と縮尺が無関係だったので、1 枚の図に人・サーバー・関数が混在しがちだった。",
+            "scenes": [
+              {
+                "title": "1. プラン作成者が type を選ぶ",
+                "actor": "developer",
+                "action": "<a href=\"#glossary:developer\">プラン作成者</a> が `term` / `client` / `server` / `class` / `function` / `db` / `table` / `cloud-service` から 1 つ選ぶ。",
+                "result": "どの縮尺で描かれるかは図側の判断で、レイヤー概念は存在しない。",
+                "edgeRefs": [
+                  1
+                ]
+              }
+            ],
+            "architectureDiagrams": {
+              "code": {
+                "edges": [
+                  {
+                    "order": 1,
+                    "source": "glossary-type-type",
+                    "target": "glossary-item",
+                    "label": "type を持つ (旧: 8 種・term 含む)",
+                    "data": "GlossaryType"
+                  }
+                ]
+              }
+            }
+          },
+          "proposedState": {
+            "storyTitle": "TO-BE: type → layer の固定マップ",
+            "takeaway": "type を選んだ瞬間に縮尺が決まる。図側はその制約を信じて描けばよい。",
+            "scenes": [
+              {
+                "title": "1. プラン作成者が type を選ぶ",
+                "actor": "developer",
+                "action": "<a href=\"#glossary:developer\">プラン作成者</a> が 11 種から 1 つ選ぶ。`term` は選べない。",
+                "result": "person / external-system / client / server / cloud-service / db / class / module / function / table / interface のいずれかになる。",
+                "edgeRefs": [
+                  1
+                ]
+              },
+              {
+                "title": "2. レイヤーが自動で決まる",
+                "actor": "type-to-layer-map",
+                "action": "<a href=\"#glossary:type-to-layer-map\">GLOSSARY_TYPE_TO_LAYER</a> がその type を <a href=\"#glossary:c4-layer-type\">C4Layer</a> に変換する。",
+                "result": "viewer も apm validator も同じマップで「この項目はどの縮尺か」を即座に判定できる。",
+                "edgeRefs": [
+                  2,
+                  3
+                ]
+              }
+            ],
+            "architectureDiagrams": {
+              "code": {
+                "edges": [
+                  {
+                    "order": 1,
+                    "source": "glossary-type-type",
+                    "target": "glossary-item",
+                    "label": "type を持つ (新: 11 種)",
+                    "data": "GlossaryType"
+                  },
+                  {
+                    "order": 2,
+                    "source": "glossary-type-type",
+                    "target": "type-to-layer-map",
+                    "label": "Record のキー",
+                    "data": "GlossaryType"
+                  },
+                  {
+                    "order": 3,
+                    "source": "type-to-layer-map",
+                    "target": "c4-layer-type",
+                    "label": "値として返す",
+                    "data": "C4Layer"
+                  }
+                ]
+              },
+              "component": {
+                "edges": [
+                  {
+                    "order": 4,
+                    "source": "types-module",
+                    "target": "c4-module",
+                    "label": "GlossaryType / C4Layer を再エクスポート",
+                    "data": "type alias"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "title": "アーキテクチャ図をレイヤー別の Record に変える",
+      "takeaway": "「1 枚の図に全部詰める」を捨て、各 state は最大 4 枚 (縮尺別) の地図を持つ。すべて必須ではない。",
+      "safeguards": [
+        "edge の `order` は state 内で一意 (全レイヤー横断で 1..N を構成)。scene の `edgeRefs` がレイヤー曖昧性なく解決できる。",
+        "<a href=\"#glossary:arch-diagram-component\">ArchitectureDiagram</a> 自身も layer prop で再フィルタするため、validator を通っていない手書き JSON が来ても他レイヤーの glossary が紛れ込まない。",
+        "TO-BE 図で各レイヤーの差分 (AS-IS との diff) は、layer ごとに対応する diagrams[layer] を比較して描画する。"
+      ],
+      "examples": [
+        {
+          "title": "FlowState の構造変更",
+          "condition": "1 つの state が複数の C4 レイヤーで設計を語りたい場面。",
+          "currentState": {
+            "storyTitle": "AS-IS: 単数の architectureDiagram",
+            "takeaway": "1 つの state には 1 枚の図しか持てなかったので、層をまたぐ設計は混雑必至だった。",
+            "scenes": [
+              {
+                "title": "1. App が単一の図を描画する",
+                "actor": "app-component",
+                "action": "<a href=\"#glossary:app-component\">App.svelte</a> が `state.architectureDiagram` (ArchitectureEdge[]) を 1 つだけ <a href=\"#glossary:arch-diagram-component\">ArchitectureDiagram</a> に渡す。",
+                "result": "別レイヤーの要素を分けたければ、別の Concern や Example として分割するしかなかった。",
+                "edgeRefs": [
+                  1
+                ]
+              }
+            ],
+            "architectureDiagrams": {
+              "code": {
+                "edges": [
+                  {
+                    "order": 1,
+                    "source": "flow-state-type",
+                    "target": "glossary-item",
+                    "label": "architectureDiagram: ArchitectureEdge[] (1 枚)",
+                    "data": "ArchitectureEdge"
+                  }
+                ]
+              }
+            }
+          },
+          "proposedState": {
+            "storyTitle": "TO-BE: レイヤーをキーとする Record",
+            "takeaway": "1 つの state が縮尺ごとの地図帳を持つ形に変わった。",
+            "scenes": [
+              {
+                "title": "1. FlowState が地図帳を持つ",
+                "actor": "flow-state-type",
+                "action": "<a href=\"#glossary:flow-state-type\">FlowState</a> の `architectureDiagrams` が <a href=\"#glossary:arch-diagrams-type\">ArchitectureDiagrams</a> 型 (`Partial<Record<C4Layer, ...>>`) を持つ。",
+                "result": "context / container / component / code の任意の部分集合を埋められる。",
+                "edgeRefs": [
+                  1,
+                  2
+                ]
+              },
+              {
+                "title": "2. App が縮尺ごとに描画を依頼する",
+                "actor": "app-component",
+                "action": "<a href=\"#glossary:app-component\">App.svelte</a> は 4 レイヤーをループし、定義されたレイヤーごとに <a href=\"#glossary:arch-diagram-component\">ArchitectureDiagram</a> を `layer` prop 付きでマウントする。",
+                "result": "1 つの state に最大 4 枚の図がレイヤー順 (Context → Code) で並ぶ。",
+                "edgeRefs": [
+                  3
+                ]
+              },
+              {
+                "title": "3. 各図はその縮尺の地図しか描かない",
+                "actor": "arch-diagram-component",
+                "action": "<a href=\"#glossary:arch-diagram-component\">ArchitectureDiagram</a> は受け取った layer に属する type の glossary だけを抽出して ELK に渡す。",
+                "result": "他レイヤーの項目が edge に紛れていても、描画段階で落とされる。",
+                "edgeRefs": [
+                  4
+                ]
+              }
+            ],
+            "architectureDiagrams": {
+              "code": {
+                "edges": [
+                  {
+                    "order": 1,
+                    "source": "flow-state-type",
+                    "target": "arch-diagrams-type",
+                    "label": "architectureDiagrams フィールド",
+                    "data": "Partial<Record<C4Layer, ...>>"
+                  },
+                  {
+                    "order": 2,
+                    "source": "arch-diagrams-type",
+                    "target": "c4-layer-type",
+                    "label": "Record のキー",
+                    "data": "C4Layer"
+                  }
+                ]
+              },
+              "component": {
+                "edges": [
+                  {
+                    "order": 3,
+                    "source": "app-component",
+                    "target": "arch-diagram-component",
+                    "label": "layer ごとに 1 度ずつマウント",
+                    "data": "layer, edges, diagramOptions"
+                  },
+                  {
+                    "order": 4,
+                    "source": "arch-diagram-component",
+                    "target": "glossary-panel-component",
+                    "label": "C4 レイヤー単位のタブを共有",
+                    "data": "C4Layer"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "title": "レイヤー違反を 3 段ガードで防ぐ",
+      "takeaway": "「家具マークを世界地図に貼る」ような違反は、生成側・検証側・描画側のどこか必ず 1 段で止まる。",
+      "safeguards": [
+        "validator は最初に当たる関門。CI / make_plan 時に拒否する。",
+        "viewer の <a href=\"#glossary:normalize-plan\">normalizePlan</a> は手書き JSON が直接読み込まれても弾く。",
+        "<a href=\"#glossary:arch-diagram-component\">ArchitectureDiagram</a> は、もし 2 段が通り抜けても layer prop に基づいて再フィルタする「最終防壁」を持つ。"
+      ],
+      "examples": [
+        {
+          "title": "レイヤー違反のケース",
+          "condition": "container 図の edge target に `class` 型 (component レイヤー) の項目を書いてしまった。",
+          "proposedState": {
+            "storyTitle": "TO-BE: 3 つの関所が違反を捕まえる",
+            "takeaway": "違反は必ずどこか 1 段で検出される。最終的に画面に描画されることはない。",
+            "scenes": [
+              {
+                "title": "1. プラン作成者がレイヤー混在を書く",
+                "actor": "developer",
+                "action": "<a href=\"#glossary:developer\">プラン作成者</a> がうっかり container 図に class 型 (Component) の id を書く。",
+                "result": "JSON は構文上は通ってしまう。意味的な違反はここでは止まらない。",
+                "edgeRefs": [
+                  1
+                ]
+              },
+              {
+                "title": "2. apm validator が事前に弾く",
+                "actor": "apm-validator",
+                "action": "<a href=\"#glossary:apm-validator\">apm validator</a> の <a href=\"#glossary:validate-references\">validateReferences</a> が、edge endpoint の type と layer を突き合わせ、不一致なら `references` エラーを返す。",
+                "result": "make_plan / CI 段階で違反が捕捉され、HTML は生成されない。",
+                "edgeRefs": [
+                  2
+                ]
+              },
+              {
+                "title": "3. viewer ロード時にも検査する",
+                "actor": "normalize-plan",
+                "action": "validator を通さず手書き JSON を流し込まれても、<a href=\"#glossary:normalize-plan\">normalizePlan</a> が <a href=\"#glossary:collect-violations\">collectLayerViolations</a> を呼んで違反を集める。1 件でもあれば throw する。",
+                "result": "viewer はエラーバナーを出し、図はレンダリングしない。",
+                "edgeRefs": [
+                  3
+                ]
+              },
+              {
+                "title": "4. 描画時の最終フィルタ",
+                "actor": "arch-diagram-component",
+                "action": "万一そこも抜けても、<a href=\"#glossary:arch-diagram-component\">ArchitectureDiagram</a> は layer prop と <a href=\"#glossary:type-to-layer-map\">GLOSSARY_TYPE_TO_LAYER</a> で glossary と edge を再フィルタする。",
+                "result": "他レイヤーの項目はそもそも ELK に渡されず、図に現れない。",
+                "edgeRefs": [
+                  4
+                ]
+              }
+            ],
+            "architectureDiagrams": {
+              "code": {
+                "edges": [
+                  {
+                    "order": 1,
+                    "source": "type-to-layer-map",
+                    "target": "validate-references",
+                    "label": "型 → レイヤー対応",
+                    "data": "Record<GlossaryType, C4Layer>"
+                  },
+                  {
+                    "order": 2,
+                    "source": "validate-references",
+                    "target": "collect-violations",
+                    "label": "同一マップを参照",
+                    "data": "(共有ロジック)"
+                  },
+                  {
+                    "order": 3,
+                    "source": "collect-violations",
+                    "target": "normalize-plan",
+                    "label": "違反配列を返す",
+                    "data": "LayerViolation[]"
+                  }
+                ]
+              },
+              "component": {
+                "edges": [
+                  {
+                    "order": 4,
+                    "source": "normalize-module",
+                    "target": "arch-diagram-component",
+                    "label": "残った検査責任を渡す",
+                    "data": "validated plan"
+                  }
+                ]
+              },
+              "container": {
+                "edges": [
+                  {
+                    "order": 5,
+                    "source": "apm-validator",
+                    "target": "plan-viewer",
+                    "label": "検証済み JSON を埋め込んだ HTML を渡す",
+                    "data": "HTML + plan-data"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
