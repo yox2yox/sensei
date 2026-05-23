@@ -1,5 +1,6 @@
 <script lang="ts">
   import InlineGlossaryText from './InlineGlossaryText.svelte'
+  import MetaphorText from './MetaphorText.svelte'
   import type { GlossaryItem, Metaphor } from '../types'
 
   interface Props {
@@ -25,7 +26,7 @@
       <section class="mt-5 rounded-lg border border-slate-300 bg-slate-50 p-4">
         <p class="text-xs font-semibold uppercase tracking-wide text-slate-600">ひと言で</p>
         <p class="mt-1 text-base font-semibold leading-7 text-gray-900">
-          <InlineGlossaryText text={takeaway} glossary={glossary} />
+          <MetaphorText text={takeaway} glossary={glossary} />
         </p>
       </section>
     {/if}

@@ -96,6 +96,7 @@ export interface Example {
 
 export interface Concern {
   title: string
+  workflowPosition?: string
   examples?: Example[]
   safeguards?: string[]
   takeaway?: string

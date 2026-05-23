@@ -8,6 +8,8 @@ function makePlan(overrides = {}) {
     glossary: [
       { id: 'a', type: 'client', name: 'A', icon: '💻' },
       { id: 'b', type: 'server', name: 'B', icon: '🖥️' },
+      { id: 'c', type: 'class', name: 'C', icon: '📦' },
+      { id: 'd', type: 'class', name: 'D', icon: '📦' },
     ],
     pairs: [{ title: 'P' }],
     ...overrides,
@@ -15,6 +17,7 @@ function makePlan(overrides = {}) {
 }
 
 const okEdge = { order: 1, source: 'a', target: 'b', label: 'calls', data: 'X' }
+const okEdgeComponent = { order: 2, source: 'c', target: 'd', label: 'wraps', data: 'Y' }
 
 function withProposedDiagram(extra = {}) {
   return makePlan({
@@ -25,7 +28,10 @@ function withProposedDiagram(extra = {}) {
           {
             title: 'E',
             proposedState: {
-              architectureDiagrams: { container: { edges: [okEdge] } },
+              architectureDiagrams: {
+                container: { edges: [okEdge] },
+                component: { edges: [okEdgeComponent] },
+              },
             },
           },
         ],
@@ -192,6 +198,8 @@ describe('validate (make_plan.mjs)', () => {
           evidence: [{ path: 'src/a.ts', startLine: 1 }],
         },
         { id: 'b', type: 'server', name: 'B', icon: '🧑‍💼' },
+        { id: 'c', type: 'class', name: 'C', icon: '📦' },
+        { id: 'd', type: 'class', name: 'D', icon: '📦' },
       ],
       pairs: [
         {
@@ -203,7 +211,10 @@ describe('validate (make_plan.mjs)', () => {
               title: '通常受付',
               condition: '依頼者がカウンターに来る',
               proposedState: {
-                architectureDiagrams: { container: { edges: [okEdge] } },
+                architectureDiagrams: {
+                  container: { edges: [okEdge] },
+                  component: { edges: [okEdgeComponent] },
+                },
                 storyTitle: '受付の流れ',
                 scenes: [
                   {

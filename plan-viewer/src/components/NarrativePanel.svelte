@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Evidence, Example, FlowState, GlossaryItem } from '../types'
   import InlineGlossaryText from './InlineGlossaryText.svelte'
+  import MetaphorText from './MetaphorText.svelte'
   import CodeAccordion from './CodeAccordion.svelte'
 
   interface Props {
@@ -67,7 +68,7 @@
           {#if block.state?.takeaway}
             <p class="mt-2 rounded-md bg-slate-50 p-3 text-sm font-semibold leading-6 text-gray-900">
               <span class="mr-2 inline-block rounded bg-slate-900 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">ひと言で</span>
-              <InlineGlossaryText text={block.state.takeaway} glossary={glossary} />
+              <MetaphorText text={block.state.takeaway} glossary={glossary} />
             </p>
           {/if}
           {#if block.state?.scenes?.length}
@@ -86,11 +87,11 @@
                         <p class="mt-1 text-xs font-medium text-gray-500">中心要素: {actorName(scene.actor)}</p>
                       {/if}
                       <p class="mt-2 text-sm leading-6 text-gray-700">
-                        <InlineGlossaryText text={scene.action} glossary={glossary} />
+                        <MetaphorText text={scene.action} glossary={glossary} />
                       </p>
                       {#if scene.result}
                         <p class="mt-1 text-sm leading-6 text-gray-600">
-                          <InlineGlossaryText text={scene.result} glossary={glossary} />
+                          <MetaphorText text={scene.result} glossary={glossary} />
                         </p>
                       {/if}
                       {#if diagramEdgeLabels(block.state, scene.edgeRefs).length}

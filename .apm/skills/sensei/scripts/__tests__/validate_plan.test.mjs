@@ -10,6 +10,8 @@ function basePlan(overrides = {}) {
     glossary: [
       { id: 'a', type: 'client', name: 'A', icon: '💻' },
       { id: 'b', type: 'server', name: 'B', icon: '🖥️' },
+      { id: 'c', type: 'class', name: 'C', icon: '📦' },
+      { id: 'd', type: 'class', name: 'D', icon: '📦' },
     ],
     pairs: [{ title: 'P' }],
     ...overrides,
@@ -17,7 +19,10 @@ function basePlan(overrides = {}) {
 }
 
 const okEdge = { order: 1, source: 'a', target: 'b', label: 'calls', data: 'X' }
+const okEdgeComponent = { order: 2, source: 'c', target: 'd', label: 'wraps', data: 'Y' }
 
+// Minimal valid pair: covers 2 layers (container + component) to satisfy the
+// SKILL.md 単一レイヤー禁止 rule that the validator now enforces.
 function planWithProposedDiagram(extra = {}) {
   return basePlan({
     pairs: [
@@ -27,7 +32,10 @@ function planWithProposedDiagram(extra = {}) {
           {
             title: 'E',
             proposedState: {
-              architectureDiagrams: { container: { edges: [okEdge] } },
+              architectureDiagrams: {
+                container: { edges: [okEdge] },
+                component: { edges: [okEdgeComponent] },
+              },
             },
           },
         ],
@@ -318,6 +326,38 @@ describe('validateReferences (cross-field constraints)', () => {
     expect(messages).toMatch(/target id unknown/)
     expect(messages).toMatch(/unknown architecture edge order in this layer: 99/)
     expect(messages).toMatch(/source->target/)
+  })
+
+  it('rejects a pair whose diagrams only span a single C4 layer', () => {
+    const errors = validateReferences(
+      basePlan({
+        pairs: [
+          {
+            title: 'single-layer',
+            examples: [
+              {
+                title: 'E',
+                proposedState: {
+                  architectureDiagrams: {
+                    container: { edges: [okEdge] },
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    )
+    expect(errors.some((e) => /at least 2 C4 layers/.test(e.message))).toBe(true)
+  })
+
+  it('accepts an explanation-only pair (no diagrams) even though no layers are used', () => {
+    const errors = validateReferences(
+      basePlan({
+        pairs: [{ title: 'explain', takeaway: 'pithy' }],
+      }),
+    )
+    expect(errors).toEqual([])
   })
 
   it('returns empty array for a valid plan', () => {

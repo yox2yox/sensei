@@ -453,7 +453,8 @@
             }
           }
         }
-      ]
+      ],
+      "workflowPosition": "全体俯瞰"
     },
     {
       "title": "ペア 2: glossary type を 11 種に固定し、4 レイヤーに縛る",
@@ -589,7 +590,8 @@
             }
           }
         }
-      ]
+      ],
+      "workflowPosition": "プラン作成中の type 選択"
     },
     {
       "title": "ペア 3: edge は所属レイヤーの中に閉じる — 3 段ガードで違反を捕まえる",
@@ -754,7 +756,8 @@
             }
           }
         }
-      ]
+      ],
+      "workflowPosition": "validator + viewer 検査工程"
     }
   ]
 }

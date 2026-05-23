@@ -68,10 +68,11 @@
       "additionalProperties": false,
       "description": "1つの設計関心事に対してその説明を行うセクション。複数の例を用いてわかりやすく説明する。",
       "properties": {
-        "title":         { "type": "string", "description": "セクションヘッダ。空文字 '' でヘッダを非表示にできる" },
-        "examples":      { "type": "array", "items": { "$ref": "#/$defs/Example" }, "description": "対象の関心ごとに関する例示。代表例やエッジケースなど、設計を説明するために必要な例をいくつかピックアップして記載する。" },
-        "safeguards":    { "type": "array", "items": { "type": "string" }, "description": "防御的設計・バリデーション・フォールバックなどの注意事項" },
-        "takeaway":      { "type": "string", "description": "この設計を「ひと言で」まとめる。できるだけGlossaryItemで定義したアナロジーを使うなど分かりやすい表現を使って簡潔に表す。" }
+        "title":            { "type": "string", "description": "セクションヘッダ。空文字 '' でヘッダを非表示にできる" },
+        "workflowPosition": { "type": "string", "description": "この pair が変更スコープの end-to-end フロー上のどの工程にあたるかを短い語句で示す。最初の pair は『全体俯瞰』、後続の pair は『type 選択工程』『validation 工程』のように位置づける。viewer はこれをタイトル横にバッジで表示する" },
+        "examples":         { "type": "array", "items": { "$ref": "#/$defs/Example" }, "description": "対象の関心ごとに関する例示。代表例やエッジケースなど、設計を説明するために必要な例をいくつかピックアップして記載する。" },
+        "safeguards":       { "type": "array", "items": { "type": "string" }, "description": "防御的設計・バリデーション・フォールバックなどの注意事項" },
+        "takeaway":         { "type": "string", "description": "この設計を「ひと言で」まとめる。できるだけGlossaryItemで定義したアナロジーを使うなど分かりやすい表現を使って簡潔に表す。" }
       }
     },
     "Example": {

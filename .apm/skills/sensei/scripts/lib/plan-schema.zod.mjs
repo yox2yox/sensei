@@ -172,6 +172,7 @@ export const Example = z
 export const Concern = z
   .object({
     title: z.string(),
+    workflowPosition: z.string().optional(),
     examples: z.array(Example).optional(),
     safeguards: z.array(z.string()).optional(),
     takeaway: z.string().optional(),
@@ -351,11 +352,28 @@ export function validateReferences(plan) {
   }
 
   ;(plan.pairs ?? []).forEach((concern, i) => {
+    // Collect every architecture diagram layer used across all examples and
+    // both states of this pair. A pair that touches diagrams at all must span
+    // at least 2 C4 layers (SKILL.md「単一レイヤーだけのプランは禁止」).
+    const pairLayers = new Set()
     ;(concern.examples ?? []).forEach((example, j) => {
       const base = `pairs[${i}].examples[${j}]`
       checkState(`${base}.currentState`, example.currentState)
       checkState(`${base}.proposedState`, example.proposedState)
+      for (const sn of ['currentState', 'proposedState']) {
+        const st = example[sn]
+        if (!st?.architectureDiagrams) continue
+        for (const layer of LAYERS) {
+          if (st.architectureDiagrams[layer]?.edges?.length) pairLayers.add(layer)
+        }
+      }
     })
+    if (pairLayers.size === 1) {
+      push(
+        `pairs[${i}]`,
+        `pair uses only the ${JSON.stringify([...pairLayers][0])} layer; SKILL.md requires at least 2 C4 layers per pair (zoom-in narrative). Add diagrams in another layer or merge this pair with a related one.`,
+      )
+    }
   })
 
   return errors

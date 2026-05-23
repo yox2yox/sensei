@@ -5,6 +5,7 @@
   import Header from './components/Header.svelte'
   import GlossaryPanel from './components/GlossaryPanel.svelte'
   import InlineGlossaryText from './components/InlineGlossaryText.svelte'
+  import MetaphorText from './components/MetaphorText.svelte'
   import ArchitectureDiagram from './components/ArchitectureDiagram.svelte'
   import NarrativePanel from './components/NarrativePanel.svelte'
 
@@ -81,15 +82,24 @@
 
       {#each pairs as concern, i (i)}
         <section class="px-6 py-6 border-t border-gray-200">
-          {#if concern.title}
-            <h2 class="text-2xl font-bold text-gray-900 mb-3">{concern.title}</h2>
+          {#if concern.title || concern.workflowPosition}
+            <div class="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              {#if concern.title}
+                <h2 class="text-2xl font-bold text-gray-900">{concern.title}</h2>
+              {/if}
+              {#if concern.workflowPosition}
+                <span class="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700">
+                  📍 {concern.workflowPosition}
+                </span>
+              {/if}
+            </div>
           {/if}
 
           {#if concern.takeaway}
             <div class="mb-4 rounded-lg border border-slate-300 bg-slate-50 p-4">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-600">ひと言で</p>
               <p class="mt-1 text-base font-semibold leading-7 text-gray-900">
-                <InlineGlossaryText text={concern.takeaway} glossary={plan.glossary} />
+                <MetaphorText text={concern.takeaway} glossary={plan.glossary} />
               </p>
             </div>
           {/if}
@@ -100,7 +110,7 @@
               <ul class="mt-2 space-y-1">
                 {#each concern.safeguards as item}
                   <li class="text-sm leading-6 text-emerald-950">
-                    <InlineGlossaryText text={item} glossary={plan.glossary} />
+                    <MetaphorText text={item} glossary={plan.glossary} />
                   </li>
                 {/each}
               </ul>

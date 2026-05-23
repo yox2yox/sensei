@@ -52,6 +52,12 @@ URLの最大長はブラウザ・サーバーによって異なりますが、�
 
 アーキテクチャ図は state ごとに `architectureDiagrams.{context|container|component|code}` の最大4枚を持てます。すべてが必須ではなく、必要なレイヤーだけ書けば十分です。各レイヤーの `edges` の source / target には、**そのレイヤーに対応する type を持つ glossary** しか指定できません（違反すると viewer はロード時にエラーを表示します）。
 
+**各 pair は最低 2 つの C4 レイヤーをまたぐ必要があります** (apm validator が機械的にチェックします)。Container だけ・Code だけのような単一レイヤーで閉じる pair はエラーになります。アーキテクチャ図がまったく無い説明だけの pair (`safeguards` と `takeaway` のみ) は例外として許容されます。
+
+`pair.workflowPosition` (任意フィールド) で、その pair が end-to-end フロー上のどの工程かを短く書けます。viewer がタイトル横にバッジで表示するので、読者は局所改修ペアを読んでも「全体のどこの話か」を即座に把握できます。
+
+scene の `action` / `result` や各種 `takeaway` に「— 例えるとこれは ◯◯ にあたる」のような比喩補足を書くと、viewer は em-dash 以降を薄い色 (`text-gray-500`) で描画し、本文と比喩を視覚的に分けます。
+
 ## JSONスキーマ
 
 ```jsonc
@@ -89,6 +95,7 @@ URLの最大長はブラウザ・サーバーによって異なりますが、�
   "pairs": [
     {
       "title": "ペアのタイトル",            // 必須。空文字はヘッダ非表示
+      "workflowPosition": "全体俯瞰",       // 省略可。end-to-end フロー上の工程をひと言で。viewer はタイトル横にバッジ表示
       "examples": [
         {
           "title": "例のタイトル",          // 必須
