@@ -1,0 +1,794 @@
+{
+  "title": "plan-viewer を C4 モデル準拠の図に作り変えた話",
+  "description": "実装プランを 1 枚の自由な箱絵で描いていた plan-viewer を、4 つの縮尺 (Context / Container / Component / Code) で語り直す道具に作り変えた変更を、コードもプロジェクトも知らない人向けに最初から説明します。<a href=\"#glossary:plan-viewer\">plan-viewer</a> とは何か、なぜ <a href=\"#glossary:c4-model\">C4 モデル</a> を採り入れたのか、glossary の <a href=\"#glossary:type-field\">type</a> がレイヤーを決める仕掛け、新しい <a href=\"#glossary:architectureDiagrams\">architectureDiagrams</a> 構造、レイヤー違反を 3 段で弾く防御線、をこの順で読み下します。読み終えると、あなた自身が新しいスキーマに沿ったプラン JSON を書けるようになります。",
+  "metaphor": {
+    "title": "地図帳の都市計画",
+    "description": "C4 モデルの 4 レイヤー (Context → Container → Component → Code) を「広域地図 → 区画地図 → 建物見取り図 → 部屋の家具配置」という縮尺の階段になぞらえます。1 枚の地図にすべての縮尺を混ぜると読めなくなる、というのが旧構造の問題でした。比喩は本文の主役ではなく、あくまでコード説明のあとに『例えるとこれは ◯◯ にあたる』と添える形で使います。"
+  },
+  "takeaway": "glossary の type で C4 レイヤーが一意に決まり、図はレイヤー別に分かれて自動検証される。これを読めばあなたも新スキーマのプラン JSON を書ける。",
+  "glossary": [
+    {
+      "id": "plan-author",
+      "type": "person",
+      "name": "プラン作者",
+      "icon": "✍️",
+      "description": "実装計画やアーキテクチャ説明を JSON で書く人。多くの場合、ベテランエンジニアが新メンバーへ引き継ぐために使う。",
+      "analogy": "都市計画図を描く製図技師",
+      "responsibility": "glossary と pairs を組み立てて、コードもプロジェクトも知らない読者に通じる物語を作る"
+    },
+    {
+      "id": "plan-reader",
+      "type": "person",
+      "name": "プラン読者",
+      "icon": "👀",
+      "description": "完成した HTML をブラウザで開いて読む人。コードベースを知らない前提。",
+      "analogy": "初めてその都市を訪れた旅行者",
+      "responsibility": "図と物語を順に追って、システムの全体像を理解する"
+    },
+    {
+      "id": "c4-model",
+      "type": "external-system",
+      "name": "C4 モデル",
+      "icon": "🗺️",
+      "description": "Simon Brown 氏が提唱したソフトウェアアーキテクチャの可視化手法。Context (システム外の人と外部システム) → Container (デプロイ単位) → Component (コンテナ内の主要要素) → Code (関数・型・テーブル) の 4 段階のズームで描く。",
+      "analogy": "全国図 → 県地図 → 市街図 → 建物見取り図、と縮尺を切り替える地図帳の流儀",
+      "responsibility": "今回採用した外部規格として、レイヤーの定義そのものを提供する"
+    },
+    {
+      "id": "plan-viewer",
+      "type": "client",
+      "name": "plan-viewer (Svelte SPA)",
+      "icon": "🖥️",
+      "description": "plan.json を読み込み、図と物語をブラウザに描く静的 SPA。Vite + Svelte でビルドされ、最終成果物は 1 枚の HTML に JSON を埋め込んで配布される。",
+      "analogy": "地図帳を 1 冊にまとめて配本するための印刷所兼閲覧端末",
+      "responsibility": "プラン JSON を解釈し、レイヤー別の図とナラティブを画面に並べる",
+      "evidence": [
+        {
+          "path": "plan-viewer/src/App.svelte",
+          "label": "ルートコンポーネント"
+        }
+      ]
+    },
+    {
+      "id": "make-plan-script",
+      "type": "server",
+      "name": "make_plan.mjs",
+      "icon": "📦",
+      "description": "plan.json と出力 basename を受け取り、検証済み JSON と、viewer バンドルに JSON を埋め込んだ自己完結 HTML を吐き出す Node スクリプト。",
+      "analogy": "地図帳の印刷工程。原稿を製本して 1 冊の本にする工房",
+      "responsibility": "JSON を検証してから HTML に焼き込む",
+      "evidence": [
+        {
+          "path": ".apm/skills/sensei/scripts/make_plan.mjs",
+          "label": "プラン生成スクリプト"
+        }
+      ]
+    },
+    {
+      "id": "validate-plan-script",
+      "type": "server",
+      "name": "validate_plan.mjs",
+      "icon": "🛡️",
+      "description": "plan.json を受け取り、型・参照整合性・レイヤー違反などを検査して『plan is valid』または詳細エラーを返すコマンドラインツール。",
+      "analogy": "印刷前に原稿を校閲する校正係",
+      "responsibility": "壊れた JSON を make_plan に通す前に弾く",
+      "evidence": [
+        {
+          "path": ".apm/skills/sensei/scripts/validate_plan.mjs",
+          "label": "検証スクリプト"
+        }
+      ]
+    },
+    {
+      "id": "plan-json",
+      "type": "db",
+      "name": "plan.json (スキーマ)",
+      "icon": "📄",
+      "description": "プランのすべてを格納する 1 つの JSON ファイル。形は reference/plan.schema.json に定義され、glossary 配列と pairs 配列を主役に持つ。",
+      "analogy": "印刷前の地図原稿。情報の一次保管庫",
+      "responsibility": "システムが扱う唯一の入力。スキーマに合わない形は弾かれる",
+      "evidence": [
+        {
+          "path": ".apm/skills/sensei/reference/plan.schema.json",
+          "label": "JSON Schema 本体"
+        }
+      ]
+    },
+    {
+      "id": "normalize-module",
+      "type": "module",
+      "name": "normalize モジュール",
+      "icon": "🧹",
+      "description": "plan-viewer の起動直後に呼ばれ、ロードした JSON を内部表現に整えるモジュール。空のペアを落としつつ、レイヤー違反があれば即座に例外を投げる。",
+      "analogy": "印刷所の受け入れ検品ライン",
+      "parentId": "plan-viewer",
+      "responsibility": "壊れた架空のエッジで描画フェーズを汚さないように、起動時に最終ゲートを敷く",
+      "evidence": [
+        {
+          "path": "plan-viewer/src/utils/normalize.ts",
+          "label": "normalizePlan / collectLayerViolations"
+        }
+      ]
+    },
+    {
+      "id": "c4-module",
+      "type": "module",
+      "name": "c4 モジュール",
+      "icon": "🪧",
+      "description": "glossary の type と C4 レイヤーの対応表 (GLOSSARY_TYPE_TO_LAYER) を一箇所に集約したユーティリティ。レイヤー名のラベル・説明文もここに置く。",
+      "analogy": "縮尺の定義表。どの記号が何メートル相当か、を 1 か所に書いた凡例",
+      "parentId": "plan-viewer",
+      "responsibility": "type からレイヤーを引く唯一の真実",
+      "evidence": [
+        {
+          "path": "plan-viewer/src/utils/c4.ts",
+          "label": "C4 マッピング"
+        }
+      ]
+    },
+    {
+      "id": "architecture-diagram-component",
+      "type": "class",
+      "name": "ArchitectureDiagram コンポーネント",
+      "icon": "🖼️",
+      "description": "1 枚のレイヤー図を描く Svelte コンポーネント。layer プロップで自分が描くべきレイヤーを受け取り、その層に属するノードと辺だけを React Flow ライクに描画する。",
+      "analogy": "1 枚の地図を引き受けて紙に刷る製図担当",
+      "parentId": "plan-viewer",
+      "responsibility": "渡されたレイヤーの edges を受け取り、座標とハンドル位置を計算して描画する",
+      "evidence": [
+        {
+          "path": "plan-viewer/src/components/ArchitectureDiagram.svelte",
+          "label": "ノード/辺の描画"
+        }
+      ]
+    },
+    {
+      "id": "glossary-panel-component",
+      "type": "class",
+      "name": "GlossaryPanel コンポーネント",
+      "icon": "📚",
+      "description": "glossary 一覧を表示するパネル。タブが C4 レイヤー単位 (Context / Container / Component / Code) になっていて、type からレイヤーを引いて振り分ける。",
+      "analogy": "地図帳の巻末索引。記号一覧をレイヤー別に並べる",
+      "parentId": "plan-viewer",
+      "responsibility": "glossary をレイヤー別タブで一覧表示する",
+      "evidence": [
+        {
+          "path": "plan-viewer/src/components/GlossaryPanel.svelte",
+          "label": "タブ切り替え"
+        }
+      ]
+    },
+    {
+      "id": "zod-schema-module",
+      "type": "module",
+      "name": "plan-schema.zod モジュール",
+      "icon": "✅",
+      "description": "validate_plan.mjs の中核。Plan / GlossaryItem / ArchitectureEdge などを zod で定義し、参照整合性は validateReferences 関数で別途検査する。",
+      "analogy": "校正係が手元に持っている朱字入りのチェックリスト",
+      "parentId": "validate-plan-script",
+      "responsibility": "型と参照の両面から JSON を検査する",
+      "evidence": [
+        {
+          "path": ".apm/skills/sensei/scripts/lib/plan-schema.zod.mjs",
+          "label": "zod 定義と参照検査"
+        }
+      ]
+    },
+    {
+      "id": "c4-layer-type",
+      "type": "interface",
+      "name": "C4Layer 型",
+      "icon": "🏷️",
+      "description": "'context' | 'container' | 'component' | 'code' の 4 値リテラル型。レイヤーを表す言葉を 4 つに固定する。",
+      "analogy": "地図帳の縮尺ラベル。1/1000・1/10000・…と数が限られる",
+      "responsibility": "コード全体で『レイヤー』という概念を 4 値に閉じ込める",
+      "evidence": [
+        {
+          "path": "plan-viewer/src/types.ts",
+          "startLine": 1,
+          "endLine": 1,
+          "label": "型エイリアス"
+        }
+      ]
+    },
+    {
+      "id": "glossary-type-type",
+      "type": "interface",
+      "name": "GlossaryType 型",
+      "icon": "🧬",
+      "description": "person / external-system / client / server / cloud-service / db / class / module / function / table / interface の 11 値リテラル型。glossary 項目の type フィールドが取る値を 11 種に閉じる。",
+      "analogy": "地図記号の規格表。使ってよい記号を 11 種に限定する",
+      "responsibility": "type フィールドの取りうる値を 11 種に固定し、レイヤー判定の入力にする",
+      "evidence": [
+        {
+          "path": "plan-viewer/src/types.ts",
+          "startLine": 3,
+          "endLine": 18,
+          "label": "11 種の type 列挙"
+        }
+      ]
+    },
+    {
+      "id": "type-field",
+      "type": "interface",
+      "name": "glossary[].type フィールド",
+      "icon": "🔖",
+      "description": "glossary 各項目に必須の type フィールド。値は GlossaryType 型の 11 値のいずれか。これ 1 つでその項目がどのレイヤーに属するかが決まる。",
+      "analogy": "地図記号の種別シール。1 つの記号には 1 種類しか貼れない",
+      "responsibility": "1 項目 = 1 type = 1 レイヤー、を成立させる単一の決定点",
+      "evidence": [
+        {
+          "path": ".apm/skills/sensei/reference/plan.schema.json",
+          "startLine": 39,
+          "endLine": 54,
+          "label": "JSON Schema 上の type 列挙"
+        }
+      ]
+    },
+    {
+      "id": "architectureDiagrams",
+      "type": "interface",
+      "name": "architectureDiagrams フィールド",
+      "icon": "🗂️",
+      "description": "State (currentState/proposedState) の中で、レイヤー別の図を最大 4 枚保持するオブジェクト。キーは context/container/component/code の 4 つで、書きたいレイヤーだけ書けばよい。旧 architectureDiagram (単数) を置き換えた。",
+      "analogy": "1 冊の地図帳の中の見出し。『広域編』『市街編』『建物編』『部屋編』の各章を独立した別ページに持つ",
+      "responsibility": "1 つの状態説明をレイヤー別に分けて持つ容器",
+      "evidence": [
+        {
+          "path": "plan-viewer/src/types.ts",
+          "startLine": 81,
+          "endLine": 88,
+          "label": "ArchitectureDiagramsByLayer 型"
+        }
+      ]
+    },
+    {
+      "id": "type-to-layer-table",
+      "type": "table",
+      "name": "GLOSSARY_TYPE_TO_LAYER テーブル",
+      "icon": "🧭",
+      "description": "11 種の glossary type を C4 レイヤーへ振り分ける単純な辞書。person→context、client→container、class→component、function→code、のように静的に固定されている。",
+      "analogy": "地図記号と縮尺の対応表。これ 1 枚で『記号 X はどの章に載るか』が決まる",
+      "parentId": "c4-module",
+      "responsibility": "type からレイヤーを引く一意の写像",
+      "evidence": [
+        {
+          "path": "plan-viewer/src/utils/c4.ts",
+          "startLine": 5,
+          "endLine": 21,
+          "label": "対応辞書"
+        }
+      ]
+    },
+    {
+      "id": "collect-layer-violations",
+      "type": "function",
+      "name": "collectLayerViolations 関数",
+      "icon": "🚨",
+      "description": "plan を走査し、各 architectureDiagrams[layer] の edge の両端 glossary の type がそのレイヤーに属しているかを確認する関数。違反箇所のパスと期待レイヤーを配列で返す。",
+      "analogy": "巻頭索引と本文の食い違いを洗い出す校正の最終確認",
+      "parentId": "normalize-module",
+      "responsibility": "レイヤー違反を漏れなく拾い上げる",
+      "evidence": [
+        {
+          "path": "plan-viewer/src/utils/normalize.ts",
+          "startLine": 86,
+          "endLine": 101,
+          "label": "走査ロジック"
+        }
+      ]
+    },
+    {
+      "id": "validate-references",
+      "type": "function",
+      "name": "validateReferences 関数",
+      "icon": "🔎",
+      "description": "zod で型を通したあとに呼ばれる参照整合性チェック。glossary id の重複、parentId の循環、edge の参照、edge order の連番、レイヤー違反などを 1 関数で網羅する。",
+      "analogy": "校正係の最終チェックリスト。文法 (zod) を通った原稿に内容矛盾がないかを検査する",
+      "parentId": "zod-schema-module",
+      "responsibility": "型では表せない参照整合性を一気に検査する",
+      "evidence": [
+        {
+          "path": ".apm/skills/sensei/scripts/lib/plan-schema.zod.mjs",
+          "startLine": 196,
+          "endLine": 362,
+          "label": "参照検査本体"
+        }
+      ]
+    },
+    {
+      "id": "render-edge-fn",
+      "type": "function",
+      "name": "ArchitectureDiagram の renderEdges 描画ロジック",
+      "icon": "🖊️",
+      "description": "ArchitectureDiagram コンポーネントが受け取った layer プロップに従い、glossary を type 別フィルタリングしてからノードと辺を組み立てる描画ロジック。レイヤー違反が残っていればここで初めて気づく『最後の砦』。",
+      "analogy": "実際に紙に印刷する瞬間。原稿に矛盾が残っていればここで滲んで見える",
+      "parentId": "architecture-diagram-component",
+      "responsibility": "layer に属するノードと辺だけを画面に描く",
+      "evidence": [
+        {
+          "path": "plan-viewer/src/components/ArchitectureDiagram.svelte",
+          "label": "layer プロップに従ったフィルタ描画"
+        }
+      ]
+    }
+  ],
+  "pairs": [
+    {
+      "title": "ペア 1: glossary の type を C4 レイヤーに固定する",
+      "examples": [
+        {
+          "title": "例 1-1: 旧 'term' 型から 11 種類の type への移行",
+          "condition": "プラン作者が glossary に『AuthValidator クラス』を 1 項目登録しようとしている、というよくある状況。旧版では type を自由に書け、新版では 11 種から選ぶ。",
+          "currentState": {
+            "storyTitle": "AS-IS: term 型で何にでもなる箱に放り込む",
+            "scenes": [
+              {
+                "title": "場面 1: 旧スキーマでは type に 'term' という汎用値が許されていた",
+                "actor": "plan-author",
+                "action": "<a href=\"#glossary:plan-author\">プラン作者</a> は AuthValidator を glossary に追加するとき、type に `term` と書いた。<a href=\"#glossary:type-field\">type フィールド</a> に汎用値があれば、項目がクラスなのかサービスなのか人なのか、形式上は区別が付かない。— 例えるとこれは、地図記号の規格表に『なんでも記号』が混ざっていて、どの縮尺の章に載せるべきか決められない状態にあたる。",
+                "result": "type だけ見てもこの項目が <a href=\"#glossary:c4-model\">C4 モデル</a> のどのレイヤーに属するか機械的に分類できない。— 例えるとこれは、本文の項目を地図帳のどの章に綴じればよいか判断できない状況にあたる。",
+                "edgeRefs": [
+                  1
+                ]
+              },
+              {
+                "title": "場面 2: viewer 側もタブ振り分けの根拠を失っていた",
+                "actor": "glossary-panel-component",
+                "action": "旧 <a href=\"#glossary:glossary-panel-component\">GlossaryPanel コンポーネント</a> は項目を表示するとき、type 文字列から物理的なレイヤーを引くテーブルを持たなかった。— 例えるとこれは、地図帳の索引が記号別の章対応表を持たず、全部を 1 ページに並べていた状態にあたる。",
+                "result": "結果として索引と本文の階層が一致せず、読者は同じ抽象度の項目をまとめて見ることができない。— 例えるとこれは、広域と建物内の記号が同じページに並んで読みづらいことにあたる。",
+                "edgeRefs": [
+                  2
+                ]
+              }
+            ],
+            "takeaway": "旧スキーマでは type が分類装置として機能しておらず、項目のレイヤーが定まらなかった。— 例えるとこれは、記号と縮尺の対応が崩れた地図帳にあたる。",
+            "architectureDiagrams": {
+              "context": {
+                "edges": [
+                  {
+                    "order": 1,
+                    "source": "plan-author",
+                    "target": "c4-model",
+                    "label": "C4 を採用するか検討中",
+                    "data": "未採用 (旧)"
+                  }
+                ]
+              },
+              "container": {
+                "edges": [
+                  {
+                    "order": 2,
+                    "source": "make-plan-script",
+                    "target": "plan-json",
+                    "label": "term 型を含む JSON を素通り",
+                    "data": "未分類の glossary"
+                  }
+                ]
+              }
+            }
+          },
+          "proposedState": {
+            "storyTitle": "TO-BE: type を 11 種に閉じてレイヤーを一意決定する",
+            "scenes": [
+              {
+                "title": "場面 1: 作者は 11 種類のうち 1 つを必ず選ぶ",
+                "actor": "plan-author",
+                "action": "<a href=\"#glossary:plan-author\">プラン作者</a> は AuthValidator を登録するとき、type に `class` を選ぶ。新しい <a href=\"#glossary:glossary-type-type\">GlossaryType 型</a> は person/external-system/client/server/cloud-service/db/class/module/function/table/interface の 11 値リテラル型で、それ以外は zod で弾かれる。— 例えるとこれは、地図記号を 11 種類に限定し、どれかを必ず貼るルールに変えたことにあたる。",
+                "result": "type が決まれば <a href=\"#glossary:c4-model\">C4 モデル</a> の 4 レイヤーのうち 1 つに自動で配属される。— 例えるとこれは、記号を貼った瞬間に属する章が決まる索引制度にあたる。",
+                "edgeRefs": [
+                  1,
+                  2
+                ]
+              },
+              {
+                "title": "場面 2: 索引パネルが type からレイヤーを引いて並べる",
+                "actor": "glossary-panel-component",
+                "action": "<a href=\"#glossary:glossary-panel-component\">GlossaryPanel コンポーネント</a> は <a href=\"#glossary:c4-module\">c4 モジュール</a> の <a href=\"#glossary:type-to-layer-table\">GLOSSARY_TYPE_TO_LAYER テーブル</a> を引いて、各項目を Context / Container / Component / Code のタブに振り分ける。— 例えるとこれは、地図帳の索引が記号→章の対応表を見て、項目を 4 つの章に綴じ分ける作業にあたる。",
+                "result": "読者は『Container だけ見たい』というズーム操作が可能になる。— 例えるとこれは、巻末索引で『市街図に出てくる記号一覧』だけを引けるようになることにあたる。",
+                "edgeRefs": [
+                  3,
+                  4
+                ]
+              },
+              {
+                "title": "場面 3: 11 種 → 4 レイヤーの写像はコードの 1 ファイルに集約された",
+                "actor": "c4-module",
+                "action": "<a href=\"#glossary:type-to-layer-table\">GLOSSARY_TYPE_TO_LAYER テーブル</a> は <a href=\"#glossary:c4-module\">c4 モジュール</a> 内に静的なオブジェクトとして書かれており、ここを変えれば viewer 全体の振り分けが連動する。— 例えるとこれは、凡例ページを 1 か所だけ書き換えれば地図帳のすべての章の凡例が同期する仕組みにあたる。",
+                "result": "type が増えても、対応表 1 つを更新するだけで分類が完成する。— 例えるとこれは、新しい記号を作っても凡例 1 枚の追加で全章に行き渡る運用にあたる。",
+                "edgeRefs": [
+                  5
+                ]
+              }
+            ],
+            "takeaway": "type を 11 値に閉じることで、項目→レイヤーが自動的に決まる。— 例えるとこれは、地図記号 11 種が縮尺 4 段の章に決め打ちで振り分けられる地図帳にあたる。",
+            "architectureDiagrams": {
+              "context": {
+                "edges": [
+                  {
+                    "order": 1,
+                    "source": "plan-author",
+                    "target": "c4-model",
+                    "label": "C4 モデルを採用",
+                    "data": "4 レイヤー定義"
+                  }
+                ]
+              },
+              "container": {
+                "edges": [
+                  {
+                    "order": 2,
+                    "source": "validate-plan-script",
+                    "target": "plan-json",
+                    "label": "11 種以外の type を弾く",
+                    "data": "GlossaryType enum 検査"
+                  },
+                  {
+                    "order": 3,
+                    "source": "plan-json",
+                    "target": "plan-viewer",
+                    "label": "ロードして表示",
+                    "data": "glossary 配列"
+                  }
+                ]
+              },
+              "component": {
+                "edges": [
+                  {
+                    "order": 4,
+                    "source": "glossary-panel-component",
+                    "target": "c4-module",
+                    "label": "type からレイヤーを引く",
+                    "data": "GlossaryType → C4Layer",
+                    "edgeStyle": "solid"
+                  },
+                  {
+                    "order": 5,
+                    "source": "architecture-diagram-component",
+                    "target": "c4-module",
+                    "label": "描画前にレイヤー確認",
+                    "data": "GlossaryType → C4Layer"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "safeguards": [
+        "旧 type の 'term' は zod の enum から外したため、古いプランをそのまま流すと validate_plan が即座にエラーで止める。",
+        "GLOSSARY_TYPE_TO_LAYER テーブルは plan-viewer 側 (c4.ts) と validator 側 (plan-schema.zod.mjs) の 2 か所に同じ内容が複製されている。type を追加するときは両方を更新する必要がある。"
+      ],
+      "takeaway": "ペア 1 を読み終えると、あなたは『glossary を書くときは 11 種の type からどれかを必ず選ぶ』『type を選んだ時点でその項目のレイヤーが自動的に決まる』という新ルールを意識しながらプランを書けるようになります。— 例えるとこれは、地図記号 11 種から 1 つを選べば、その記号が載る章が自動で決まる、と覚えれば十分にあたる。"
+    },
+    {
+      "title": "ペア 2: 1 枚絵の architectureDiagram を 4 枚のレイヤー図に分解する",
+      "examples": [
+        {
+          "title": "例 2-1: 認証フローを 1 枚に押し込んでいた図を Container / Component / Code に分けて積む",
+          "condition": "プラン作者が『パスワード認証の流れ』を 1 つの state として描く、というごく標準的なケース。AS-IS では 1 枚の図に人・サーバー・DB・関数を全部混ぜていた。",
+          "currentState": {
+            "storyTitle": "AS-IS: 単一 architectureDiagram に異縮尺の登場人物を混在させる",
+            "scenes": [
+              {
+                "title": "場面 1: 旧 State 型は architectureDiagram (単数) を 1 枚だけ持っていた",
+                "actor": "plan-author",
+                "action": "<a href=\"#glossary:plan-author\">プラン作者</a> は 1 つの State に対し architectureDiagram フィールドへ全 edge を書き込んでいた。プラン作者・サーバー・DB テーブル・関数が同じ図に並んだ。— 例えるとこれは、地図帳のすべての縮尺を 1 枚の用紙に重ね描きしようとした状態にあたる。",
+                "result": "<a href=\"#glossary:architecture-diagram-component\">ArchitectureDiagram コンポーネント</a> は全ノードを 1 枚に押し込むので、矢印が交錯して読めなくなる。— 例えるとこれは、広域図と部屋の家具配置が同じ紙に重なって判読不能になる現象にあたる。",
+                "edgeRefs": [
+                  1,
+                  2
+                ]
+              },
+              {
+                "title": "場面 2: 描画コンポーネントはレイヤーを知らずに描いていた",
+                "actor": "architecture-diagram-component",
+                "action": "旧 <a href=\"#glossary:architecture-diagram-component\">ArchitectureDiagram コンポーネント</a> は layer プロップを持たず、glossary 一覧を <a href=\"#glossary:glossary-panel-component\">GlossaryPanel コンポーネント</a> と共有しながら、与えられた edges を全部 1 枚の図に並べていた。サーバーも関数も同じ縮尺で並ぶ。— 例えるとこれは、印刷担当が縮尺指示を受け取らずに渡された記号を全部 1 枚に刷ってしまう状況にあたる。",
+                "result": "読者は『どの抽象度の話か』を毎回頭で切り替えなければならず、物語が積み上がらない。— 例えるとこれは、章立てのない地図帳を頭から読まされる体験にあたる。",
+                "edgeRefs": [
+                  3
+                ]
+              }
+            ],
+            "takeaway": "AS-IS では 1 枚に全部混ざり、ズームの概念がなかった。— 例えるとこれは、縮尺指定のない 1 枚絵の地図にあたる。",
+            "architectureDiagrams": {
+              "container": {
+                "edges": [
+                  {
+                    "order": 1,
+                    "source": "plan-viewer",
+                    "target": "plan-json",
+                    "label": "1 枚の図を読む",
+                    "data": "architectureDiagram (旧)"
+                  },
+                  {
+                    "order": 2,
+                    "source": "plan-viewer",
+                    "target": "plan-json",
+                    "label": "別レイヤーの edge も混在",
+                    "data": "context/container/component/code が混在"
+                  }
+                ]
+              },
+              "component": {
+                "edges": [
+                  {
+                    "order": 3,
+                    "source": "architecture-diagram-component",
+                    "target": "glossary-panel-component",
+                    "label": "全 edge を 1 枚に並べて描画",
+                    "data": "縮尺混在のノード集合"
+                  }
+                ]
+              }
+            }
+          },
+          "proposedState": {
+            "storyTitle": "TO-BE: architectureDiagrams をレイヤー別 4 枚に分割して積み上げる",
+            "scenes": [
+              {
+                "title": "場面 1: State は最大 4 枚の図を持つ容器を持つ",
+                "actor": "plan-author",
+                "action": "<a href=\"#glossary:plan-author\">プラン作者</a> は <a href=\"#glossary:architectureDiagrams\">architectureDiagrams フィールド</a> の中に context / container / component / code の 4 つのキーで図を分けて書く。書きたいレイヤーだけ書けば良く、不要なレイヤーは省略する。— 例えるとこれは、1 冊の地図帳に最大 4 章を持たせ、必要な章だけ刷る運用にあたる。",
+                "result": "1 つの状態説明が、レイヤー別に独立した 4 枚の図として保存される。— 例えるとこれは、章ごとに別ページとして綴じられた地図帳にあたる。",
+                "edgeRefs": [
+                  1,
+                  2
+                ]
+              },
+              {
+                "title": "場面 2: ArchitectureDiagram コンポーネントは layer プロップを受け取る",
+                "actor": "architecture-diagram-component",
+                "action": "<a href=\"#glossary:architecture-diagram-component\">ArchitectureDiagram コンポーネント</a> は呼び出し時に layer プロップ ('context' | 'container' | 'component' | 'code') を受け取り、そのレイヤーに属する type の glossary だけをノード化する。— 例えるとこれは、印刷担当が章名を指定されてから刷る仕組みにあたる。",
+                "result": "1 つの ArchitectureDiagram は 1 章ぶんの図しか描かない。読者は 1 つずつ縮尺を上げて読める。— 例えるとこれは、章を 1 ページずつめくって読み進める読書体験にあたる。",
+                "edgeRefs": [
+                  3
+                ]
+              },
+              {
+                "title": "場面 3: App.svelte が definedLayers の順で図を並べる",
+                "actor": "plan-viewer",
+                "action": "<a href=\"#glossary:plan-viewer\">plan-viewer</a> のルート (App.svelte) は C4_LAYERS の順 (context → container → component → code) でレイヤーをループし、edge が定義されているレイヤーだけ ArchitectureDiagram を呼び出す。— 例えるとこれは、地図帳の目次を上から下に読み下し、内容のある章だけを掲載する編集作業にあたる。",
+                "result": "読者は常にズームインの方向で図を読み、外側のレイヤーで覚えた箱が次のレイヤーで開かれていく感覚を得る。— 例えるとこれは、広域地図で見つけた街を市街図で開き、さらに建物の中へ入っていく体験にあたる。",
+                "edgeRefs": [
+                  4
+                ]
+              },
+              {
+                "title": "場面 4: order 連番は state 内で 1..N に整えられる",
+                "actor": "plan-author",
+                "action": "<a href=\"#glossary:plan-author\">プラン作者</a> はレイヤーが 4 枚に分かれてもなお、edge の order を state 全体で 1..N の連番にする。scene.edgeRefs はレイヤーをまたいで参照できる。— 例えるとこれは、章をまたいでも図に通し番号を振り、本文から番号で参照できる地図帳にあたる。",
+                "result": "scene が『この場面は container の order 2 と component の order 5 を説明している』とまたぎ参照できる。— 例えるとこれは、本文から複数の章の図を 1 つの番号体系で同時に指せるようになる利便にあたる。",
+                "edgeRefs": [
+                  5
+                ]
+              }
+            ],
+            "takeaway": "1 つの state は最大 4 枚の図に分かれ、外→内に積み上げ読みできる。— 例えるとこれは、地図帳を広域→市街→建物→部屋と順にめくっていく読み方にあたる。",
+            "architectureDiagrams": {
+              "container": {
+                "edges": [
+                  {
+                    "order": 1,
+                    "source": "plan-viewer",
+                    "target": "plan-json",
+                    "label": "JSON をロード",
+                    "data": "Plan オブジェクト"
+                  },
+                  {
+                    "order": 2,
+                    "source": "make-plan-script",
+                    "target": "plan-json",
+                    "label": "検証 → HTML 埋め込み",
+                    "data": "plan.json + viewer バンドル"
+                  }
+                ]
+              },
+              "component": {
+                "edges": [
+                  {
+                    "order": 3,
+                    "source": "architecture-diagram-component",
+                    "target": "c4-module",
+                    "label": "layer プロップで配属レイヤー確定",
+                    "data": "C4Layer 値"
+                  },
+                  {
+                    "order": 4,
+                    "source": "normalize-module",
+                    "target": "architecture-diagram-component",
+                    "label": "レイヤー別 edge を渡す",
+                    "data": "edges[layer]",
+                    "edgeStyle": "solid"
+                  }
+                ]
+              },
+              "code": {
+                "edges": [
+                  {
+                    "order": 5,
+                    "source": "render-edge-fn",
+                    "target": "type-to-layer-table",
+                    "label": "type→layer 一致を確認しながら描画",
+                    "data": "edge の両端 type"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "safeguards": [
+        "architectureDiagrams は 4 つのキーすべてを書く必要はない。書きたいレイヤーだけ書く。ただし単一レイヤーだけのプランは執筆ルール上禁止 (構造が積み上がらないため)。",
+        "edge の order は state 内で 1..N の重複なし連番。レイヤーをまたいでも同じ番号空間を共有する。validateReferences がここを厳密に検査する。",
+        "scenes[].edgeRefs は同じ state 内であれば、どのレイヤーの order でも指せる。レイヤーをまたぐ物語が書ける。"
+      ],
+      "takeaway": "ペア 2 を読み終えると、あなたは『1 つの状態は最大 4 枚のレイヤー図に分け、外側から書き、order は state 内で通し番号にする』という構造でプランを書けるようになります。— 例えるとこれは、地図帳の章立てに従ってページを分け、図番だけは 1 冊通しで振る、と覚えれば十分にあたる。"
+    },
+    {
+      "title": "ペア 3: レイヤー違反を 3 段ガードで弾く",
+      "examples": [
+        {
+          "title": "例 3-1: container の図に間違えて class 型の項目を edge に書いた場合",
+          "condition": "プラン作者が container 図の edge に、本来 component レイヤーに属する class 型の項目 ID を書いてしまった、というありがちなミス。",
+          "currentState": {
+            "storyTitle": "AS-IS: 違反は描画フェーズまで気づけなかった",
+            "scenes": [
+              {
+                "title": "場面 1: 旧スキーマには『レイヤー違反』という概念自体がなかった",
+                "actor": "validate-plan-script",
+                "action": "旧 <a href=\"#glossary:validate-plan-script\">validate_plan.mjs</a> は型と参照の存在は検査するが、type とレイヤーの整合は検査しない。誤った edge も『plan is valid』と判定された。— 例えるとこれは、印刷前の校正係が記号と章の対応を確認しないまま OK を出す状態にあたる。",
+                "result": "壊れた JSON が <a href=\"#glossary:make-plan-script\">make_plan.mjs</a> を素通りして HTML に焼き込まれる。— 例えるとこれは、誤りを含んだ原稿がそのまま製本されてしまう事故にあたる。",
+                "edgeRefs": [
+                  1
+                ]
+              },
+              {
+                "title": "場面 2: 描画フェーズで初めて視覚的に異常が露呈する",
+                "actor": "render-edge-fn",
+                "action": "<a href=\"#glossary:render-edge-fn\">renderEdges 描画ロジック</a> は誤った edge を律儀に描こうとするが、ノードが該当レイヤーに存在しないため矢印の片端が宙に浮く、もしくは座標がずれる。— 例えるとこれは、印刷物を刷り上げてから記号が章違いだと気付く後手の状況にあたる。",
+                "result": "原因の特定はブラウザの DevTools と人力デバッグに委ねられる。— 例えるとこれは、刷り上がった本を 1 ページずつめくって誤植を探す手間にあたる。",
+                "edgeRefs": [
+                  2
+                ]
+              }
+            ],
+            "takeaway": "違反は実行時の描画でしか気づけず、原因特定に時間がかかった。— 例えるとこれは、製本後にしか校正できない地図帳にあたる。",
+            "architectureDiagrams": {
+              "container": {
+                "edges": [
+                  {
+                    "order": 1,
+                    "source": "validate-plan-script",
+                    "target": "plan-json",
+                    "label": "型のみ検査 (素通り)",
+                    "data": "旧スキーマでは type×layer 検査なし"
+                  }
+                ]
+              },
+              "code": {
+                "edges": [
+                  {
+                    "order": 2,
+                    "source": "render-edge-fn",
+                    "target": "type-to-layer-table",
+                    "label": "テーブルを参照せずに描画",
+                    "data": "破損レンダリング",
+                    "edgeStyle": "dashed",
+                    "animated": true
+                  }
+                ]
+              }
+            }
+          },
+          "proposedState": {
+            "storyTitle": "TO-BE: zod → normalizePlan → 描画フェーズの 3 段で違反を確実に止める",
+            "scenes": [
+              {
+                "title": "場面 1: 第 1 段 — validate_plan.mjs の zod 層が静的に拒む",
+                "actor": "validate-plan-script",
+                "action": "<a href=\"#glossary:validate-plan-script\">validate_plan.mjs</a> はまず <a href=\"#glossary:zod-schema-module\">plan-schema.zod モジュール</a> で形を確認する。形が通ったら <a href=\"#glossary:validate-references\">validateReferences 関数</a> が呼ばれ、edge の両端 glossary の type が、所属レイヤーと一致しているかを検査する。違反があれば『glossary id ... has type ... which belongs to layer ..., but this diagram is for layer ...』というメッセージを返して終了する。— 例えるとこれは、校正係が原稿の各記号と章の対応を 1 つずつ目視で確認する作業にあたる。",
+                "result": "壊れた JSON は <a href=\"#glossary:make-plan-script\">make_plan.mjs</a> に届く前に弾かれる。— 例えるとこれは、原稿が印刷工程に回る前に校正で差し戻されることにあたる。",
+                "edgeRefs": [
+                  1,
+                  2
+                ]
+              },
+              {
+                "title": "場面 2: 第 2 段 — plan-viewer 起動時の normalizePlan がもう一度検査する",
+                "actor": "normalize-module",
+                "action": "<a href=\"#glossary:plan-viewer\">plan-viewer</a> は HTML を開いた瞬間に <a href=\"#glossary:normalize-module\">normalize モジュール</a> の normalizePlan を呼ぶ。中で <a href=\"#glossary:collect-layer-violations\">collectLayerViolations 関数</a> が走り、違反が 1 つでもあればその場で例外を投げ、画面には『layer does not match』の赤いエラーバナーが出る。— 例えるとこれは、製本前に印刷所側でもう一度抜き取り検査する工程にあたる。",
+                "result": "validate_plan.mjs を経由せず直接 HTML を編集してしまった場合でも、起動時にここで止まる。— 例えるとこれは、校正を飛ばして持ち込まれた原稿を印刷所の受け入れ検品で押し戻す仕組みにあたる。",
+                "edgeRefs": [
+                  3,
+                  4
+                ]
+              },
+              {
+                "title": "場面 3: 第 3 段 — ArchitectureDiagram コンポーネントが描画時に再度フィルタする",
+                "actor": "architecture-diagram-component",
+                "action": "<a href=\"#glossary:architecture-diagram-component\">ArchitectureDiagram コンポーネント</a> 自体も layer プロップに従い、glossary を type で再フィルタしてからノード化する。万一前段をすり抜けた違反 edge があっても、レイヤーに属さない glossary はそのレイヤーの図に登場しない。— 例えるとこれは、印刷担当が刷る直前に記号と章の対応を最終確認する三重の安全策にあたる。",
+                "result": "違反 edge は単に描かれずに無視され、誤った視覚情報を読者に届けない。— 例えるとこれは、誤植が印刷面に出ない最後の砦にあたる。",
+                "edgeRefs": [
+                  5
+                ]
+              },
+              {
+                "title": "場面 4: 3 段は GLOSSARY_TYPE_TO_LAYER テーブルを共通の物差しにしている",
+                "actor": "type-to-layer-table",
+                "action": "上記 3 段はすべて <a href=\"#glossary:type-to-layer-table\">GLOSSARY_TYPE_TO_LAYER テーブル</a> を引いて判定する。テーブルは plan-viewer 側の c4.ts と validator 側の plan-schema.zod.mjs に同じ内容で複製されている。— 例えるとこれは、校正・受け入れ検品・印刷直前の確認が同じ凡例表を見比べて判定している状況にあたる。",
+                "result": "判定基準が 3 段で揃うため、ある段で通った原稿が次の段で落ちる、という不整合は起きない。— 例えるとこれは、3 つの工程が同じ凡例で動いている品質保証にあたる。",
+                "edgeRefs": [
+                  6
+                ]
+              }
+            ],
+            "takeaway": "違反は 3 段で確実に止まり、最終描画には届かない。— 例えるとこれは、校正→受け入れ検品→印刷直前確認の 3 重チェックが共通凡例で揃った地図帳製作工程にあたる。",
+            "architectureDiagrams": {
+              "container": {
+                "edges": [
+                  {
+                    "order": 1,
+                    "source": "plan-json",
+                    "target": "validate-plan-script",
+                    "label": "第 1 段に投入",
+                    "data": "未検証 JSON"
+                  },
+                  {
+                    "order": 2,
+                    "source": "validate-plan-script",
+                    "target": "make-plan-script",
+                    "label": "validate 通過後だけ make に渡す",
+                    "data": "検証済み Plan"
+                  }
+                ]
+              },
+              "component": {
+                "edges": [
+                  {
+                    "order": 3,
+                    "source": "normalize-module",
+                    "target": "c4-module",
+                    "label": "第 2 段: 起動時にレイヤー判定",
+                    "data": "type→layer"
+                  },
+                  {
+                    "order": 4,
+                    "source": "normalize-module",
+                    "target": "architecture-diagram-component",
+                    "label": "違反なし state のみ描画許可",
+                    "data": "NormalizedPlan"
+                  },
+                  {
+                    "order": 5,
+                    "source": "architecture-diagram-component",
+                    "target": "c4-module",
+                    "label": "第 3 段: 描画直前フィルタ",
+                    "data": "layer プロップ + GlossaryType"
+                  }
+                ]
+              },
+              "code": {
+                "edges": [
+                  {
+                    "order": 6,
+                    "source": "validate-references",
+                    "target": "type-to-layer-table",
+                    "label": "第 1 段の判定根拠",
+                    "data": "型→レイヤー写像"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "safeguards": [
+        "3 段は同じ GLOSSARY_TYPE_TO_LAYER 写像を見ているため、判定がずれることはない。ただし両側 (c4.ts と plan-schema.zod.mjs) を手で同期する必要があり、片方だけ更新すると整合が崩れる。",
+        "edge の order は『state 内で 1..N の重複なし連番』を満たさないと validateReferences で弾かれる。レイヤーが 3 枚に分かれていても通し番号にすること。",
+        "scenes[].edgeRefs は存在する order しか指せない。違反 order を書くと validate_plan の段階でエラーになり、HTML までたどり着けない。"
+      ],
+      "takeaway": "ペア 3 を読み終えると、あなたは『レイヤー違反は CLI 検証 → viewer ロード → 描画直前の 3 段で弾かれるので、まず validate_plan.mjs を必ず通せ』というプラン作成手順を体得し、エラーメッセージを読めば原因のレイヤーが即わかるようになります。— 例えるとこれは、3 重の校正工程の存在を知って『最初に校正係に渡せばよい』と理解できる状態にあたる。"
+    }
+  ]
+}
