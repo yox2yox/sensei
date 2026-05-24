@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   filterGlossary,
+  filterGlossaryByType,
   buildTree,
   flattenTree,
   filterTree,
@@ -9,10 +10,10 @@ import {
 import type { GlossaryItem } from '../../types'
 
 const items: GlossaryItem[] = [
-  { id: '1', type: 'term', name: 'Term A', description: '' },
+  { id: '1', type: 'person', name: 'Person A', description: '' },
   { id: '2', type: 'server', name: 'Server B', description: '' },
   { id: '3', type: 'table', name: 'Table C', description: '' },
-  { id: '4', type: 'term', name: 'Term D', description: '' },
+  { id: '4', type: 'external-system', name: 'External D', description: '' },
 ]
 
 describe('filterGlossary', () => {
@@ -20,26 +21,34 @@ describe('filterGlossary', () => {
     expect(filterGlossary(items, 'all')).toHaveLength(4)
   })
 
-  it('filters by term', () => {
-    const result = filterGlossary(items, 'term')
+  it('filters by context layer', () => {
+    const result = filterGlossary(items, 'context')
     expect(result).toHaveLength(2)
-    expect(result.every((i) => i.type === 'term')).toBe(true)
+    expect(result.map((i) => i.id).sort()).toEqual(['1', '4'])
   })
 
-  it('filters by server', () => {
-    const result = filterGlossary(items, 'server')
+  it('filters by container layer', () => {
+    const result = filterGlossary(items, 'container')
     expect(result).toHaveLength(1)
     expect(result[0].id).toBe('2')
   })
 
-  it('filters by table', () => {
-    const result = filterGlossary(items, 'table')
+  it('filters by code layer', () => {
+    const result = filterGlossary(items, 'code')
     expect(result).toHaveLength(1)
     expect(result[0].id).toBe('3')
   })
 
-  it('returns empty array when no match', () => {
-    expect(filterGlossary([], 'term')).toHaveLength(0)
+  it('returns empty array for an empty input', () => {
+    expect(filterGlossary([], 'context')).toHaveLength(0)
+  })
+})
+
+describe('filterGlossaryByType', () => {
+  it('filters by exact type', () => {
+    const result = filterGlossaryByType(items, 'person')
+    expect(result).toHaveLength(1)
+    expect(result[0].id).toBe('1')
   })
 })
 
@@ -54,9 +63,9 @@ describe('buildTree', () => {
   it('builds hierarchy with parentId', () => {
     const hierarchical: GlossaryItem[] = [
       { id: 'root', type: 'server', name: 'Root', description: '' },
-      { id: 'child1', type: 'term', name: 'Child 1', description: '', parentId: 'root' },
+      { id: 'child1', type: 'class', name: 'Child 1', description: '', parentId: 'root' },
       { id: 'child2', type: 'table', name: 'Child 2', description: '', parentId: 'root' },
-      { id: 'grandchild', type: 'term', name: 'Grandchild', description: '', parentId: 'child1' },
+      { id: 'grandchild', type: 'function', name: 'Grandchild', description: '', parentId: 'child1' },
     ]
     const tree = buildTree(hierarchical)
     expect(tree).toHaveLength(1)
@@ -74,8 +83,8 @@ describe('buildTree', () => {
 
   it('treats items with dangling parentId as roots', () => {
     const dangling: GlossaryItem[] = [
-      { id: 'a', type: 'term', name: 'A', description: '', parentId: 'nonexistent' },
-      { id: 'b', type: 'term', name: 'B', description: '' },
+      { id: 'a', type: 'class', name: 'A', description: '', parentId: 'nonexistent' },
+      { id: 'b', type: 'class', name: 'B', description: '' },
     ]
     const tree = buildTree(dangling)
     expect(tree).toHaveLength(2)
@@ -83,8 +92,8 @@ describe('buildTree', () => {
 
   it('handles circular parentId without infinite recursion', () => {
     const circular: GlossaryItem[] = [
-      { id: 'a', type: 'term', name: 'A', description: '', parentId: 'b' },
-      { id: 'b', type: 'term', name: 'B', description: '', parentId: 'a' },
+      { id: 'a', type: 'class', name: 'A', description: '', parentId: 'b' },
+      { id: 'b', type: 'class', name: 'B', description: '', parentId: 'a' },
     ]
     // Should not throw or hang
     const tree = buildTree(circular)
@@ -142,8 +151,8 @@ describe('buildTree', () => {
 
     it('terminates on circular parentId combined with maxDepth', () => {
       const circular: GlossaryItem[] = [
-        { id: 'a', type: 'term', name: 'A', description: '', parentId: 'b' },
-        { id: 'b', type: 'term', name: 'B', description: '', parentId: 'a' },
+        { id: 'a', type: 'class', name: 'A', description: '', parentId: 'b' },
+        { id: 'b', type: 'class', name: 'B', description: '', parentId: 'a' },
       ]
       const tree = buildTree(circular, 3)
       expect(tree.length).toBeGreaterThanOrEqual(0)
@@ -155,9 +164,9 @@ describe('flattenTree', () => {
   it('flattens tree preserving depth-first order', () => {
     const hierarchical: GlossaryItem[] = [
       { id: 'root', type: 'server', name: 'Root', description: '' },
-      { id: 'child1', type: 'term', name: 'Child 1', description: '', parentId: 'root' },
+      { id: 'child1', type: 'class', name: 'Child 1', description: '', parentId: 'root' },
       { id: 'child2', type: 'table', name: 'Child 2', description: '', parentId: 'root' },
-      { id: 'grandchild', type: 'term', name: 'Grandchild', description: '', parentId: 'child1' },
+      { id: 'grandchild', type: 'function', name: 'Grandchild', description: '', parentId: 'child1' },
     ]
     const tree = buildTree(hierarchical)
     const flat = flattenTree(tree)
@@ -172,7 +181,7 @@ describe('flattenTree', () => {
 describe('filterTree', () => {
   const hierarchical: GlossaryItem[] = [
     { id: 'root', type: 'server', name: 'Root', description: '' },
-    { id: 'child1', type: 'term', name: 'Child 1', description: '', parentId: 'root' },
+    { id: 'child1', type: 'class', name: 'Child 1', description: '', parentId: 'root' },
     { id: 'child2', type: 'table', name: 'Child 2', description: '', parentId: 'root' },
   ]
 
@@ -183,10 +192,10 @@ describe('filterTree', () => {
     expect(filtered[0].children).toHaveLength(2)
   })
 
-  it('keeps parent if descendant matches filter', () => {
+  it('keeps parent if descendant matches layer filter', () => {
     const tree = buildTree(hierarchical)
-    const filtered = filterTree(tree, 'term')
-    expect(filtered).toHaveLength(1) // root kept because child1 is term
+    const filtered = filterTree(tree, 'component')
+    expect(filtered).toHaveLength(1) // root kept because child1 is a class (component)
     expect(filtered[0].item.id).toBe('root')
     expect(filtered[0].children).toHaveLength(1)
     expect(filtered[0].children[0].item.id).toBe('child1')
@@ -198,7 +207,7 @@ describe('filterTree', () => {
       { id: 'child', type: 'class', name: 'Child', description: '', parentId: 'root' },
     ]
     const tree = buildTree(noMatch)
-    const filtered = filterTree(tree, 'term')
+    const filtered = filterTree(tree, 'context')
     expect(filtered).toHaveLength(0)
   })
 })

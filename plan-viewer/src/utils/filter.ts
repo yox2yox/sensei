@@ -1,4 +1,5 @@
-import type { ArchitectureEdge, GlossaryItem, GlossaryType } from '../types'
+import type { ArchitectureEdge, C4Layer, GlossaryItem, GlossaryType } from '../types'
+import { GLOSSARY_TYPE_TO_LAYER } from './c4'
 
 export interface TreeNode {
   item: GlossaryItem
@@ -7,6 +8,8 @@ export interface TreeNode {
 }
 
 export const DEFAULT_MAX_DEPTH = 3
+
+export type GlossaryTab = 'all' | C4Layer
 
 /**
  * Build a forest (list of root trees) from flat glossary items.
@@ -73,15 +76,15 @@ export function flattenTree(nodes: TreeNode[]): TreeNode[] {
   return result
 }
 
-/** Filter tree by glossary type tab — keep parent nodes if any descendant matches */
-export function filterTree(nodes: TreeNode[], tab: GlossaryType | 'all'): TreeNode[] {
+/** Filter tree by C4 layer tab — keep parent nodes if any descendant matches */
+export function filterTree(nodes: TreeNode[], tab: GlossaryTab): TreeNode[] {
   if (tab === 'all') return nodes
 
   function filterNodes(list: TreeNode[]): TreeNode[] {
     const result: TreeNode[] = []
     for (const node of list) {
       const filteredChildren = filterNodes(node.children)
-      if (node.item.type === tab || filteredChildren.length > 0) {
+      if (GLOSSARY_TYPE_TO_LAYER[node.item.type] === tab || filteredChildren.length > 0) {
         result.push({ ...node, children: filteredChildren })
       }
     }
@@ -91,13 +94,21 @@ export function filterTree(nodes: TreeNode[], tab: GlossaryType | 'all'): TreeNo
   return filterNodes(nodes)
 }
 
-/** Legacy flat filter for backward compatibility */
+/** Flat filter by C4 layer (kept exported for legacy and tests). */
 export function filterGlossary(
   items: GlossaryItem[],
-  tab: GlossaryType | 'all'
+  tab: GlossaryTab
 ): GlossaryItem[] {
   if (tab === 'all') return items
-  return items.filter((item) => item.type === tab)
+  return items.filter((item) => GLOSSARY_TYPE_TO_LAYER[item.type] === tab)
+}
+
+/** Filter glossary items by exact type (e.g. for badges, debug views). */
+export function filterGlossaryByType(
+  items: GlossaryItem[],
+  type: GlossaryType
+): GlossaryItem[] {
+  return items.filter((item) => item.type === type)
 }
 
 /** Keep only glossary items that are directly used by a state's architecture diagram. */

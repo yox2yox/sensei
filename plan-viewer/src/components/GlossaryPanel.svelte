@@ -2,8 +2,9 @@
   import { tick } from 'svelte'
   import InlineGlossaryText from './InlineGlossaryText.svelte'
   import CodeAccordion from './CodeAccordion.svelte'
-  import type { GlossaryItem, GlossaryType } from '../types'
-  import { buildTree, filterTree, flattenTree, type TreeNode } from '../utils/filter'
+  import type { GlossaryItem } from '../types'
+  import { buildTree, filterTree, flattenTree, type GlossaryTab, type TreeNode } from '../utils/filter'
+  import { C4_LAYERS, C4_LAYER_LABELS } from '../utils/c4'
   import { getGlossaryAncestorIds } from '../utils/glossaryLinks'
   import {
     glossaryItemIcon,
@@ -18,19 +19,11 @@
   }
   const { items }: Props = $props()
 
-  type Tab = GlossaryType | 'all'
-  let activeTab = $state<Tab>('all')
+  let activeTab = $state<GlossaryTab>('all')
 
-  const tabs: { value: Tab; label: string }[] = [
+  const tabs: { value: GlossaryTab; label: string }[] = [
     { value: 'all', label: 'すべて' },
-    { value: 'term', label: '用語' },
-    { value: 'client', label: 'クライアント' },
-    { value: 'server', label: 'サーバー' },
-    { value: 'cloud-service', label: 'クラウドサービス' },
-    { value: 'class', label: 'クラス' },
-    { value: 'function', label: '関数' },
-    { value: 'db', label: 'DB' },
-    { value: 'table', label: 'テーブル' },
+    ...C4_LAYERS.map((layer) => ({ value: layer as GlossaryTab, label: C4_LAYER_LABELS[layer] })),
   ]
 
   let tree = $derived(buildTree(items))

@@ -10,6 +10,8 @@ function basePlan(overrides = {}) {
     glossary: [
       { id: 'a', type: 'client', name: 'A', icon: '💻' },
       { id: 'b', type: 'server', name: 'B', icon: '🖥️' },
+      { id: 'c', type: 'class', name: 'C', icon: '📦' },
+      { id: 'd', type: 'class', name: 'D', icon: '📦' },
     ],
     pairs: [{ title: 'P' }],
     ...overrides,
@@ -17,14 +19,25 @@ function basePlan(overrides = {}) {
 }
 
 const okEdge = { order: 1, source: 'a', target: 'b', label: 'calls', data: 'X' }
+const okEdgeComponent = { order: 2, source: 'c', target: 'd', label: 'wraps', data: 'Y' }
 
+// Minimal valid pair: covers 2 layers (container + component) to satisfy the
+// SKILL.md 単一レイヤー禁止 rule that the validator now enforces.
 function planWithProposedDiagram(extra = {}) {
   return basePlan({
     pairs: [
       {
         title: 'P',
         examples: [
-          { title: 'E', proposedState: { architectureDiagram: [okEdge] } },
+          {
+            title: 'E',
+            proposedState: {
+              architectureDiagrams: {
+                container: { edges: [okEdge] },
+                component: { edges: [okEdgeComponent] },
+              },
+            },
+          },
         ],
       },
     ],
@@ -54,6 +67,15 @@ describe('validatePlan (JSON Schema + zod)', () => {
     expect(result.errors[0].source).toBe('json-schema')
   })
 
+  it('rejects the now-removed "term" glossary type', () => {
+    const plan = basePlan({
+      glossary: [{ id: 'a', type: 'term', name: 'A', icon: '📖' }],
+    })
+    const result = validatePlan(plan)
+    expect(result.ok).toBe(false)
+    expect(result.errors[0].source).toBe('json-schema')
+  })
+
   it('reports json-schema error when pairs is missing', () => {
     const { pairs: _omit, ...rest } = basePlan()
     const result = validatePlan(rest)
@@ -77,9 +99,13 @@ describe('validatePlan (JSON Schema + zod)', () => {
             {
               title: 'E',
               proposedState: {
-                architectureDiagram: [
-                  { order: 1, source: 'ghost', target: 'b', label: 'x', data: 'y' },
-                ],
+                architectureDiagrams: {
+                  container: {
+                    edges: [
+                      { order: 1, source: 'ghost', target: 'b', label: 'x', data: 'y' },
+                    ],
+                  },
+                },
               },
             },
           ],
@@ -90,6 +116,36 @@ describe('validatePlan (JSON Schema + zod)', () => {
     expect(result.ok).toBe(false)
     expect(result.errors[0].source).toBe('references')
     expect(result.errors[0].path).toMatch(/source/)
+  })
+
+  it('reports references error when an edge mixes layers', () => {
+    const plan = basePlan({
+      glossary: [
+        { id: 'a', type: 'client', name: 'A', icon: '💻' },
+        { id: 'b', type: 'class', name: 'B', icon: '📦' },
+      ],
+      pairs: [
+        {
+          title: 'P',
+          examples: [
+            {
+              title: 'E',
+              proposedState: {
+                architectureDiagrams: {
+                  container: {
+                    edges: [{ order: 1, source: 'a', target: 'b', label: 'x', data: 'y' }],
+                  },
+                },
+              },
+            },
+          ],
+        },
+      ],
+    })
+    const result = validatePlan(plan)
+    expect(result.ok).toBe(false)
+    expect(result.errors[0].source).toBe('references')
+    expect(result.errors.some((e) => /layer/.test(e.message))).toBe(true)
   })
 })
 
@@ -144,7 +200,7 @@ describe('validateReferences (cross-field constraints)', () => {
     expect(errors.some((e) => /nesting depth/.test(e.message))).toBe(true)
   })
 
-  it('requires architectureDiagram.order to be consecutive from 1', () => {
+  it('requires architectureDiagrams edge orders across layers to form 1..N', () => {
     const errors = validateReferences(
       basePlan({
         pairs: [
@@ -154,10 +210,14 @@ describe('validateReferences (cross-field constraints)', () => {
               {
                 title: 'E',
                 proposedState: {
-                  architectureDiagram: [
-                    { order: 1, source: 'a', target: 'b', label: 'x', data: 'y' },
-                    { order: 3, source: 'a', target: 'b', label: 'x', data: 'y' },
-                  ],
+                  architectureDiagrams: {
+                    container: {
+                      edges: [
+                        { order: 1, source: 'a', target: 'b', label: 'x', data: 'y' },
+                        { order: 3, source: 'a', target: 'b', label: 'x', data: 'y' },
+                      ],
+                    },
+                  },
                 },
               },
             ],
@@ -165,7 +225,70 @@ describe('validateReferences (cross-field constraints)', () => {
         ],
       }),
     )
-    expect(errors.some((e) => /must be 2/.test(e.message))).toBe(true)
+    expect(errors.some((e) => /must form 1\.\.2/.test(e.message))).toBe(true)
+  })
+
+  it('detects duplicate edge order across diagrams in the same state', () => {
+    const errors = validateReferences(
+      basePlan({
+        glossary: [
+          { id: 'a', type: 'client', name: 'A', icon: '💻' },
+          { id: 'b', type: 'server', name: 'B', icon: '🖥️' },
+          { id: 'c', type: 'class', name: 'C', icon: '📦' },
+          { id: 'd', type: 'class', name: 'D', icon: '📦' },
+        ],
+        pairs: [
+          {
+            title: 'P',
+            examples: [
+              {
+                title: 'E',
+                proposedState: {
+                  architectureDiagrams: {
+                    container: {
+                      edges: [{ order: 1, source: 'a', target: 'b', label: 'x', data: 'y' }],
+                    },
+                    component: {
+                      edges: [{ order: 1, source: 'c', target: 'd', label: 'x', data: 'y' }],
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    )
+    expect(errors.some((e) => /duplicate edge order/.test(e.message))).toBe(true)
+  })
+
+  it('detects layer mismatch on edge endpoint', () => {
+    const errors = validateReferences(
+      basePlan({
+        glossary: [
+          { id: 'a', type: 'client', name: 'A', icon: '💻' },
+          { id: 'b', type: 'class', name: 'B', icon: '📦' },
+        ],
+        pairs: [
+          {
+            title: 'P',
+            examples: [
+              {
+                title: 'E',
+                proposedState: {
+                  architectureDiagrams: {
+                    container: {
+                      edges: [{ order: 1, source: 'a', target: 'b', label: 'x', data: 'y' }],
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    )
+    expect(errors.some((e) => /layer/.test(e.message))).toBe(true)
   })
 
   it('validates diagramOptions.edges keys (order or source->target)', () => {
@@ -178,14 +301,18 @@ describe('validateReferences (cross-field constraints)', () => {
               {
                 title: 'E',
                 proposedState: {
-                  architectureDiagram: [okEdge],
-                  diagramOptions: {
-                    edges: {
-                      '1': {},
-                      'a->b': {},
-                      'a->ghost': {},
-                      '99': {},
-                      'weird': {},
+                  architectureDiagrams: {
+                    container: {
+                      edges: [okEdge],
+                      diagramOptions: {
+                        edges: {
+                          '1': {},
+                          'a->b': {},
+                          'a->ghost': {},
+                          '99': {},
+                          'weird': {},
+                        },
+                      },
                     },
                   },
                 },
@@ -197,8 +324,40 @@ describe('validateReferences (cross-field constraints)', () => {
     )
     const messages = errors.map((e) => e.message).join('\n')
     expect(messages).toMatch(/target id unknown/)
-    expect(messages).toMatch(/unknown architecture edge order in this state: 99/)
+    expect(messages).toMatch(/unknown architecture edge order in this layer: 99/)
     expect(messages).toMatch(/source->target/)
+  })
+
+  it('rejects a pair whose diagrams only span a single C4 layer', () => {
+    const errors = validateReferences(
+      basePlan({
+        pairs: [
+          {
+            title: 'single-layer',
+            examples: [
+              {
+                title: 'E',
+                proposedState: {
+                  architectureDiagrams: {
+                    container: { edges: [okEdge] },
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    )
+    expect(errors.some((e) => /at least 2 C4 layers/.test(e.message))).toBe(true)
+  })
+
+  it('accepts an explanation-only pair (no diagrams) even though no layers are used', () => {
+    const errors = validateReferences(
+      basePlan({
+        pairs: [{ title: 'explain', takeaway: 'pithy' }],
+      }),
+    )
+    expect(errors).toEqual([])
   })
 
   it('returns empty array for a valid plan', () => {

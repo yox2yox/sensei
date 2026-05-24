@@ -8,6 +8,8 @@ function makePlan(overrides = {}) {
     glossary: [
       { id: 'a', type: 'client', name: 'A', icon: '💻' },
       { id: 'b', type: 'server', name: 'B', icon: '🖥️' },
+      { id: 'c', type: 'class', name: 'C', icon: '📦' },
+      { id: 'd', type: 'class', name: 'D', icon: '📦' },
     ],
     pairs: [{ title: 'P' }],
     ...overrides,
@@ -15,6 +17,7 @@ function makePlan(overrides = {}) {
 }
 
 const okEdge = { order: 1, source: 'a', target: 'b', label: 'calls', data: 'X' }
+const okEdgeComponent = { order: 2, source: 'c', target: 'd', label: 'wraps', data: 'Y' }
 
 function withProposedDiagram(extra = {}) {
   return makePlan({
@@ -22,7 +25,15 @@ function withProposedDiagram(extra = {}) {
       {
         title: 'P',
         examples: [
-          { title: 'E', proposedState: { architectureDiagram: [okEdge] } },
+          {
+            title: 'E',
+            proposedState: {
+              architectureDiagrams: {
+                container: { edges: [okEdge] },
+                component: { edges: [okEdgeComponent] },
+              },
+            },
+          },
         ],
         ...extra,
       },
@@ -59,12 +70,12 @@ describe('validate (make_plan.mjs)', () => {
 
   it('rejects when top-level currentState is provided (legacy format removed)', () => {
     const plan = makePlan({
-      currentState: { architectureDiagram: [okEdge] },
+      currentState: { architectureDiagrams: { container: { edges: [okEdge] } } },
     })
     expect(() => validate(plan)).toThrow(/additional propert|must NOT have/i)
   })
 
-  it('rejects when example.currentState.architectureDiagram[j].source is unknown (path in error)', () => {
+  it('rejects when example.currentState architecture edge source is unknown (path in error)', () => {
     const plan = makePlan({
       pairs: [
         {
@@ -73,9 +84,13 @@ describe('validate (make_plan.mjs)', () => {
             {
               title: 'E',
               currentState: {
-                architectureDiagram: [
-                  { order: 1, source: 'ghost', target: 'b', label: 'x', data: 'y' },
-                ],
+                architectureDiagrams: {
+                  container: {
+                    edges: [
+                      { order: 1, source: 'ghost', target: 'b', label: 'x', data: 'y' },
+                    ],
+                  },
+                },
               },
             },
           ],
@@ -83,11 +98,11 @@ describe('validate (make_plan.mjs)', () => {
       ],
     })
     expect(() => validate(plan)).toThrow(
-      /pairs\[0\]\.examples\[0\]\.currentState\.architectureDiagram\[0\]\.source/,
+      /pairs\[0\]\.examples\[0\]\.currentState\.architectureDiagrams\.container\.edges\[0\]\.source/,
     )
   })
 
-  it('rejects when example.proposedState.architectureDiagram[j].target is unknown', () => {
+  it('rejects when example.proposedState architecture edge target is unknown', () => {
     const plan = makePlan({
       pairs: [
         {
@@ -96,9 +111,13 @@ describe('validate (make_plan.mjs)', () => {
             {
               title: 'E',
               proposedState: {
-                architectureDiagram: [
-                  { order: 1, source: 'a', target: 'ghost', label: 'x', data: 'y' },
-                ],
+                architectureDiagrams: {
+                  container: {
+                    edges: [
+                      { order: 1, source: 'a', target: 'ghost', label: 'x', data: 'y' },
+                    ],
+                  },
+                },
               },
             },
           ],
@@ -106,11 +125,11 @@ describe('validate (make_plan.mjs)', () => {
       ],
     })
     expect(() => validate(plan)).toThrow(
-      /pairs\[0\]\.examples\[0\]\.proposedState\.architectureDiagram\[0\]\.target/,
+      /pairs\[0\]\.examples\[0\]\.proposedState\.architectureDiagrams\.container\.edges\[0\]\.target/,
     )
   })
 
-  it('rejects when architecture edges are not numbered consecutively from 1', () => {
+  it('rejects when architecture edge orders do not form 1..N across a state', () => {
     const plan = makePlan({
       pairs: [
         {
@@ -119,9 +138,13 @@ describe('validate (make_plan.mjs)', () => {
             {
               title: 'E',
               proposedState: {
-                architectureDiagram: [
-                  { order: 2, source: 'a', target: 'b', label: 'calls', data: 'X' },
-                ],
+                architectureDiagrams: {
+                  container: {
+                    edges: [
+                      { order: 2, source: 'a', target: 'b', label: 'calls', data: 'X' },
+                    ],
+                  },
+                },
               },
             },
           ],
@@ -129,8 +152,35 @@ describe('validate (make_plan.mjs)', () => {
       ],
     })
     expect(() => validate(plan)).toThrow(
-      /proposedState\.architectureDiagram\[0\]\.order:.*must be 1/,
+      /proposedState\.architectureDiagrams:.*must form 1\.\.1/,
     )
+  })
+
+  it('rejects when an edge references a glossary item from a different C4 layer', () => {
+    const plan = makePlan({
+      glossary: [
+        { id: 'a', type: 'client', name: 'A', icon: '💻' },
+        { id: 'b', type: 'class', name: 'B', icon: '📦' },
+      ],
+      pairs: [
+        {
+          title: 'P',
+          examples: [
+            {
+              title: 'E',
+              proposedState: {
+                architectureDiagrams: {
+                  container: {
+                    edges: [{ order: 1, source: 'a', target: 'b', label: 'x', data: 'y' }],
+                  },
+                },
+              },
+            },
+          ],
+        },
+      ],
+    })
+    expect(() => validate(plan)).toThrow(/layer/i)
   })
 
   it('accepts kaisetsu narrative fields with evidence and scene edge links', () => {
@@ -148,6 +198,8 @@ describe('validate (make_plan.mjs)', () => {
           evidence: [{ path: 'src/a.ts', startLine: 1 }],
         },
         { id: 'b', type: 'server', name: 'B', icon: '🧑‍💼' },
+        { id: 'c', type: 'class', name: 'C', icon: '📦' },
+        { id: 'd', type: 'class', name: 'D', icon: '📦' },
       ],
       pairs: [
         {
@@ -159,7 +211,10 @@ describe('validate (make_plan.mjs)', () => {
               title: '通常受付',
               condition: '依頼者がカウンターに来る',
               proposedState: {
-                architectureDiagram: [okEdge],
+                architectureDiagrams: {
+                  container: { edges: [okEdge] },
+                  component: { edges: [okEdgeComponent] },
+                },
                 storyTitle: '受付の流れ',
                 scenes: [
                   {
@@ -190,7 +245,7 @@ describe('validate (make_plan.mjs)', () => {
             {
               title: 'E',
               proposedState: {
-                architectureDiagram: [okEdge],
+                architectureDiagrams: { container: { edges: [okEdge] } },
                 scenes: [
                   {
                     title: '場面1',
@@ -218,7 +273,7 @@ describe('validate (make_plan.mjs)', () => {
             {
               title: 'E',
               proposedState: {
-                architectureDiagram: [okEdge],
+                architectureDiagrams: { container: { edges: [okEdge] } },
                 scenes: [
                   {
                     title: '場面1',

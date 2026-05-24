@@ -1,6 +1,17 @@
 # Plan スキーマ — リファレンス
 
-`viewer/` バンドルが読み込む JSON ペイロードの仕様。
+`viewer/` バンドルが読み込む JSON ペイロードの仕様。アーキテクチャ図は [C4 モデル](https://c4model.com/) の `context / container / component / code` の 4 レイヤーで構成し、`glossary[].type` ごとに固定されたレイヤーに属する項目だけがそのレイヤーの図の source/target に登場できる。
+
+## C4 レイヤーと glossary type
+
+| レイヤー | type |
+| --- | --- |
+| `context` | `person`, `external-system` |
+| `container` | `client`, `server`, `cloud-service`, `db` |
+| `component` | `class`, `module` |
+| `code` | `function`, `table`, `interface` |
+
+`term` 型は廃止された。必要なレイヤーだけ図を書けばよく、4 枚すべて必須ではない。
 
 ## スキーマ本体
 

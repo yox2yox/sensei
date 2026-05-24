@@ -1,9 +1,11 @@
 <script lang="ts">
   import { normalizePlan } from './utils/normalize'
-  import type { Concern, Example, FlowState, Plan } from './types'
+  import { C4_LAYERS, C4_LAYER_LABELS, C4_LAYER_DESCRIPTIONS } from './utils/c4'
+  import type { C4Layer, Concern, Example, FlowState, Plan } from './types'
   import Header from './components/Header.svelte'
   import GlossaryPanel from './components/GlossaryPanel.svelte'
   import InlineGlossaryText from './components/InlineGlossaryText.svelte'
+  import MetaphorText from './components/MetaphorText.svelte'
   import ArchitectureDiagram from './components/ArchitectureDiagram.svelte'
   import NarrativePanel from './components/NarrativePanel.svelte'
 
@@ -43,8 +45,14 @@
 
   const { plan, pairs, error } = loadPlan()
 
-  function hasArchitectureDiagram(state?: FlowState): boolean {
-    return Boolean(state?.architectureDiagram?.length)
+  function definedLayers(state?: FlowState): C4Layer[] {
+    const diagrams = state?.architectureDiagrams
+    if (!diagrams) return []
+    return C4_LAYERS.filter((layer) => (diagrams[layer]?.edges?.length ?? 0) > 0)
+  }
+
+  function hasAnyDiagram(state?: FlowState): boolean {
+    return definedLayers(state).length > 0
   }
 
   function exampleHasAnyState(ex: Example): boolean {
@@ -74,15 +82,24 @@
 
       {#each pairs as concern, i (i)}
         <section class="px-6 py-6 border-t border-gray-200">
-          {#if concern.title}
-            <h2 class="text-2xl font-bold text-gray-900 mb-3">{concern.title}</h2>
+          {#if concern.title || concern.workflowPosition}
+            <div class="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              {#if concern.title}
+                <h2 class="text-2xl font-bold text-gray-900">{concern.title}</h2>
+              {/if}
+              {#if concern.workflowPosition}
+                <span class="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700">
+                  📍 {concern.workflowPosition}
+                </span>
+              {/if}
+            </div>
           {/if}
 
           {#if concern.takeaway}
             <div class="mb-4 rounded-lg border border-slate-300 bg-slate-50 p-4">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-600">ひと言で</p>
               <p class="mt-1 text-base font-semibold leading-7 text-gray-900">
-                <InlineGlossaryText text={concern.takeaway} glossary={plan.glossary} />
+                <MetaphorText text={concern.takeaway} glossary={plan.glossary} />
               </p>
             </div>
           {/if}
@@ -93,7 +110,7 @@
               <ul class="mt-2 space-y-1">
                 {#each concern.safeguards as item}
                   <li class="text-sm leading-6 text-emerald-950">
-                    <InlineGlossaryText text={item} glossary={plan.glossary} />
+                    <MetaphorText text={item} glossary={plan.glossary} />
                   </li>
                 {/each}
               </ul>
@@ -119,37 +136,51 @@
                 <NarrativePanel example={example} glossary={plan.glossary} />
               {/if}
 
-              {#if example.currentState}
+              {#if example.currentState && hasAnyDiagram(example.currentState)}
                 <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
                   <div class="mb-2 flex items-center gap-2">
                     <span class="rounded bg-amber-600 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-white">AS-IS</span>
-                    <h4 class="text-base font-semibold text-amber-900">現状の処理の流れ</h4>
+                    <h4 class="text-base font-semibold text-amber-900">現状のアーキテクチャ</h4>
                   </div>
-                  {#if hasArchitectureDiagram(example.currentState)}
-                    <ArchitectureDiagram
-                      glossary={plan.glossary}
-                      architectureEdges={example.currentState.architectureDiagram ?? []}
-                      diagram={example.currentState.diagramOptions}
-                    />
-                  {/if}
+                  {#each definedLayers(example.currentState) as layer (layer)}
+                    <div class="mt-3 first:mt-0">
+                      <div class="mb-1 flex items-baseline gap-2">
+                        <span class="rounded bg-amber-700 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">C4: {C4_LAYER_LABELS[layer]}</span>
+                        <span class="text-xs text-amber-900/80">{C4_LAYER_DESCRIPTIONS[layer]}</span>
+                      </div>
+                      <ArchitectureDiagram
+                        glossary={plan.glossary}
+                        architectureEdges={example.currentState.architectureDiagrams?.[layer]?.edges ?? []}
+                        diagram={example.currentState.architectureDiagrams?.[layer]?.diagramOptions}
+                        {layer}
+                      />
+                    </div>
+                  {/each}
                 </div>
               {/if}
 
-              {#if example.proposedState}
+              {#if example.proposedState && hasAnyDiagram(example.proposedState)}
                 <div class="mt-4 rounded-lg border border-sky-200 bg-sky-50 p-4">
                   <div class="mb-2 flex items-center gap-2">
                     <span class="rounded bg-sky-600 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-white">TO-BE</span>
-                    <h4 class="text-base font-semibold text-sky-900">変更後の処理の流れ</h4>
+                    <h4 class="text-base font-semibold text-sky-900">変更後のアーキテクチャ</h4>
                   </div>
-                  {#if hasArchitectureDiagram(example.proposedState)}
-                    <ArchitectureDiagram
-                      glossary={plan.glossary}
-                      architectureEdges={example.proposedState.architectureDiagram ?? []}
-                      diagram={example.proposedState.diagramOptions}
-                      isDiff={example.currentState !== undefined}
-                      baseArchitectureEdges={example.currentState?.architectureDiagram ?? []}
-                    />
-                  {/if}
+                  {#each definedLayers(example.proposedState) as layer (layer)}
+                    <div class="mt-3 first:mt-0">
+                      <div class="mb-1 flex items-baseline gap-2">
+                        <span class="rounded bg-sky-700 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">C4: {C4_LAYER_LABELS[layer]}</span>
+                        <span class="text-xs text-sky-900/80">{C4_LAYER_DESCRIPTIONS[layer]}</span>
+                      </div>
+                      <ArchitectureDiagram
+                        glossary={plan.glossary}
+                        architectureEdges={example.proposedState.architectureDiagrams?.[layer]?.edges ?? []}
+                        diagram={example.proposedState.architectureDiagrams?.[layer]?.diagramOptions}
+                        {layer}
+                        isDiff={example.currentState !== undefined}
+                        baseArchitectureEdges={example.currentState?.architectureDiagrams?.[layer]?.edges ?? []}
+                      />
+                    </div>
+                  {/each}
                 </div>
               {/if}
             </article>

@@ -1,6 +1,6 @@
 {
   "title": "アーキテクチャ図を ELK + 辺マージで読みやすくする",
-  "description": "<a href=\"#glossary:arch-diagram\">ArchitectureDiagram</a> の手動グリッド配置をやめ、<a href=\"#glossary:elkjs\">ELK</a> による階層レイアウトと、位置から決まる固定ハンドルでの辺マージに置き換える。「ノード間の辺は基本1本」を保証することで、特に A→B と B→A のペアで起きていた線の重なりとラベルの絡まりを構造的に解消する。",
+  "description": "<a href=\"#glossary:arch-diagram\">ArchitectureDiagram</a> の手動グリッド配置をやめ、<a href=\"#glossary:elkjs\">elkjs</a> による階層レイアウトと、位置から決まる固定ハンドルでの辺マージに置き換える。「ノード間の辺は基本1本」を保証することで、特に A→B と B→A のペアで起きていた線の重なりとラベルの絡まりを構造的に解消する。",
   "metaphor": {
     "title": "幹線道路の交差点を整える",
     "description": "旧レイアウトはノードをグリッドに並べてから辺を引いていたため、行き先の違うクルマが同じ道に流れ込み、交差点で渋滞していた。新しい設計は、まず交通量を測って車線とインターチェンジ（ハンドル）を割り当て、同じ区間を往復する車は同じ車線にまとめ、行き先表示で『この線は両方向です』と示す。"
@@ -8,12 +8,29 @@
   "takeaway": "ノードの相対位置から辺の出入口を一意に決め、同じ区間の辺は1本に束ねる。これだけで図はぐっと静かになる。",
   "glossary": [
     {
+      "id": "viewer-app",
+      "type": "client",
+      "name": "plan-viewer",
+      "icon": "💻",
+      "description": "アーキテクチャ図を描画する SPA。ブラウザ上で Svelte + Svelte Flow で動く。",
+      "analogy": "交差点全体を描く設計事務所のアプリ"
+    },
+    {
+      "id": "elkjs",
+      "type": "cloud-service",
+      "name": "elkjs",
+      "icon": "🧮",
+      "description": "Eclipse Layout Kernel の JS 移植。`layered` で階層型グラフ配置を行い、compound（入れ子）ノードと交差最小化に対応。",
+      "analogy": "区画計画を委託される設計事務所",
+      "responsibility": "ノード幅・高さ・子要素・辺を受け取り、x/y と図全体の幅高さを返す。"
+    },
+    {
       "id": "arch-diagram",
       "type": "class",
       "name": "ArchitectureDiagram.svelte",
       "icon": "📐",
+      "parentId": "viewer-app",
       "description": "アーキテクチャ図を描画するルートコンポーネント。ELK レイアウトと辺ルーティングを束ねる。",
-      "persona": "現場監督",
       "analogy": "交差点全体の交通整理を統括する責任者",
       "responsibility": "入力（glossary + edges）を受け取り、ELK にレイアウトを依頼し、結果を Svelte Flow に渡す。",
       "evidence": [
@@ -28,8 +45,8 @@
       "type": "class",
       "name": "ArchitectureGlossaryNode.svelte",
       "icon": "🧩",
-      "description": "1ノードを描画する Svelte コンポーネント。今回の変更で4辺 × source/target = 8個のハンドルを公開する。",
-      "persona": "受付窓口",
+      "parentId": "viewer-app",
+      "description": "1ノードを描画する Svelte コンポーネント。4辺 × source/target = 8個のハンドルを公開する。",
       "analogy": "建物の四方すべてに入口・出口を備えた駅舎",
       "responsibility": "上下左右にハンドルを露出し、どこからでも辺を受け入れる/送り出せるようにする。",
       "evidence": [
@@ -40,12 +57,22 @@
       ]
     },
     {
+      "id": "svelte-flow",
+      "type": "module",
+      "name": "Svelte Flow",
+      "icon": "🌊",
+      "parentId": "viewer-app",
+      "description": "@xyflow/svelte。ノードと辺の DOM 描画、ハンドル接続、ビューポート操作を担う。",
+      "analogy": "完成図を実際に紙に印刷するプロッタ",
+      "responsibility": "受け取った `nodes` / `edges` を画面に出す。ハンドル `id` を介して辺の出入口を制御できる。"
+    },
+    {
       "id": "elk-layout",
       "type": "function",
       "name": "computeElkLayout",
       "icon": "🗺️",
+      "parentId": "arch-diagram",
       "description": "glossary tree と辺リストを ELK の compound graph に変換し、`layered` アルゴリズムで配置を計算する非同期関数。",
-      "persona": "都市計画家",
       "analogy": "区画の入れ子と道路の本数から街路図を引き直す人",
       "responsibility": "ノードの絶対座標 + Svelte Flow 用の親子付き相対座標を返す。",
       "evidence": [
@@ -60,9 +87,9 @@
       "type": "function",
       "name": "routeEdges",
       "icon": "🔀",
+      "parentId": "arch-diagram",
       "description": "ノードの絶対座標と生の辺リストから、ハンドル割当・双方向マージを行うピュア関数。",
-      "persona": "車線管制係",
-      "analogy": "同じ区間を往復するクルマを同一車線にまとめ、両端に矢印を立てる係",
+      "analogy": "車線管制係",
       "responsibility": "(source, target) のペアをグループ化し、逆向きが含まれていれば 1 本にマージして双方向矢印を立てる。",
       "evidence": [
         {
@@ -72,309 +99,269 @@
           "label": "routeEdges 本体"
         }
       ]
-    },
-    {
-      "id": "pick-sides",
-      "type": "function",
-      "name": "pickSides",
-      "icon": "🧭",
-      "parentId": "route-edges",
-      "description": "2ノードの中心間ベクトルから支配軸を決め、ハンドル組を一意に返す純粋関数。",
-      "persona": "方位計",
-      "analogy": "東西と南北のどちらに伸びる道かを即決するコンパス",
-      "responsibility": "dx と dy の絶対値を比較して `right↔left` か `bottom↔top` のどちらか1組だけを返す。",
-      "evidence": [
-        {
-          "path": "plan-viewer/src/utils/edgeRouting.ts",
-          "startLine": 22,
-          "endLine": 42,
-          "label": "pickSides"
-        }
-      ]
-    },
-    {
-      "id": "elkjs",
-      "type": "cloud-service",
-      "name": "elkjs",
-      "icon": "🧮",
-      "description": "Eclipse Layout Kernel の JS 移植。`layered` で階層型グラフ配置を行い、compound（入れ子）ノードと交差最小化に対応。",
-      "persona": "外部レイアウトエンジン",
-      "analogy": "区画計画を委託される設計事務所",
-      "responsibility": "ノード幅・高さ・子要素・辺を受け取り、x/y と図全体の幅高さを返す。"
-    },
-    {
-      "id": "svelte-flow",
-      "type": "term",
-      "name": "Svelte Flow",
-      "icon": "🌊",
-      "description": "@xyflow/svelte。ノードと辺の DOM 描画、ハンドル接続、ビューポート操作を担う。",
-      "persona": "描画エンジン",
-      "analogy": "完成図を実際に紙に印刷するプロッタ",
-      "responsibility": "受け取った `nodes` / `edges` を画面に出す。ハンドル `id` を介して辺の出入口を制御できる。"
     }
   ],
   "pairs": [
     {
       "title": "レイアウト戦略：手動グリッド → ELK 階層配置",
-      "description": "旧 <a href=\"#glossary:arch-diagram\">ArchitectureDiagram</a> は glossary を3列グリッドに並べるだけで、辺の通り道を考慮していなかった。<a href=\"#glossary:elk-layout\">computeElkLayout</a> を導入し、配置自体を <a href=\"#glossary:elkjs\">elkjs</a> に委ねる。",
-      "currentState": {
-        "description": "ノードの座標は `col * (W + GAP)`、`row * (H + GAP)` の固定式。辺は後付けで引かれるため、行をまたぐ辺が同じ縦座標で重なり、ラベルが団子になる。",
-        "architectureEdges": [
-          {
-            "order": 1,
-            "source": "arch-diagram",
-            "target": "glossary-node",
-            "label": "並べる",
-            "data": "grid 座標"
-          },
-          {
-            "order": 2,
-            "source": "arch-diagram",
-            "target": "svelte-flow",
-            "label": "渡す",
-            "data": "Node[] + Edge[]"
-          }
-        ],
-        "storyTitle": "古い交差点：信号も車線もない",
-        "scenes": [
-          {
-            "title": "1. 並べる",
-            "actor": "arch-diagram",
-            "action": "<a href=\"#glossary:arch-diagram\">ArchitectureDiagram</a> がノードを3列グリッドに置く。",
-            "result": "並びはきれいだが、辺の絡まりは無視されている。",
-            "edgeRefs": [
-              1
-            ]
-          },
-          {
-            "title": "2. 渡す",
-            "actor": "arch-diagram",
-            "action": "そのまま <a href=\"#glossary:svelte-flow\">Svelte Flow</a> に描画依頼する。",
-            "result": "辺は最短直線で引かれ、行をまたぐと重なる。",
-            "edgeRefs": [
-              2
-            ]
-          }
-        ],
-        "takeaway": "配置と辺ルーティングが完全に分離されていなかったので、辺の混雑はレイアウトでは救えなかった。"
-      },
-      "proposedState": {
-        "description": "<a href=\"#glossary:elk-layout\">computeElkLayout</a> が compound graph を組み立て、<a href=\"#glossary:elkjs\">elkjs</a> に交差最小化を任せる。結果の絶対座標を <a href=\"#glossary:route-edges\">routeEdges</a> に渡す。",
-        "architectureEdges": [
-          {
-            "order": 1,
-            "source": "arch-diagram",
-            "target": "elk-layout",
-            "label": "依頼",
-            "data": "glossary + edges + 寸法"
-          },
-          {
-            "order": 2,
-            "source": "elk-layout",
-            "target": "elkjs",
-            "label": "委譲",
-            "data": "compound ElkNode"
-          },
-          {
-            "order": 3,
-            "source": "elkjs",
-            "target": "elk-layout",
-            "label": "返す",
-            "data": "x/y, width/height"
-          },
-          {
-            "order": 4,
-            "source": "elk-layout",
-            "target": "arch-diagram",
-            "label": "返す",
-            "data": "nodes + absolutePositions"
-          },
-          {
-            "order": 5,
-            "source": "arch-diagram",
-            "target": "route-edges",
-            "label": "渡す",
-            "data": "positions + edges"
-          },
-          {
-            "order": 6,
-            "source": "route-edges",
-            "target": "arch-diagram",
-            "label": "返す",
-            "data": "RoutedEdgeOutput[]"
-          },
-          {
-            "order": 7,
-            "source": "arch-diagram",
-            "target": "svelte-flow",
-            "label": "渡す",
-            "data": "Node[] + Edge[] (handle 付き)"
-          }
-        ],
-        "storyTitle": "新しい交差点：街路図に沿って道を引く",
-        "scenes": [
-          {
-            "title": "1-4. 配置を計算する",
-            "actor": "elk-layout",
-            "action": "<a href=\"#glossary:arch-diagram\">ArchitectureDiagram</a> が <a href=\"#glossary:elk-layout\">computeElkLayout</a> に依頼、内部で <a href=\"#glossary:elkjs\">elkjs</a> に委譲し、座標を受け取って返す。",
-            "result": "階層と交差最小化を考慮した座標が手に入る。",
-            "edgeRefs": [
-              1,
-              2,
-              3,
-              4
-            ]
-          },
-          {
-            "title": "5-6. 辺を整える",
-            "actor": "route-edges",
-            "action": "<a href=\"#glossary:route-edges\">routeEdges</a> にノード絶対座標と生の辺を渡し、ハンドル割当とマージ済みの辺を受け取る。",
-            "result": "辺はそれぞれ「位置に応じた正しい入口・出口」を持つ。",
-            "edgeRefs": [
-              5,
-              6
-            ]
-          },
-          {
-            "title": "7. 描画する",
-            "actor": "svelte-flow",
-            "action": "Svelte Flow にレイアウト済みノードとルーティング済み辺を渡す。",
-            "result": "完成図が画面に出る。",
-            "edgeRefs": [
-              7
-            ]
-          }
-        ],
-        "takeaway": "ELK が「配置」、routeEdges が「辺の整流」、Svelte Flow が「描画」と役割が分かれ、それぞれを独立にチューニングできるようになった。"
-      },
-      "comparison": [
+      "examples": [
         {
-          "label": "ノード配置",
-          "current": "3列固定グリッド（手動式）",
-          "proposed": "ELK layered + hierarchyHandling INCLUDE_CHILDREN",
-          "note": "ELK は親子構造を保ったまま層を割り当てるので、グループ枠と階層配置が両立する。"
-        },
-        {
-          "label": "辺の通り道",
-          "current": "ノード位置とは無関係に直線で引かれる",
-          "proposed": "ELK が交差を最小化するように層・順序を決めた上で routeEdges がハンドルを割り当てる"
-        },
-        {
-          "label": "API 形状",
-          "current": "同期。`buildLayout` が即時に Node[] を返す",
-          "proposed": "非同期。`$effect` 内で `await computeElkLayout` し、token guard で stale 結果を捨てる",
-          "note": "ELK は async-only なので戻り値は Promise。複数の入力変更が連続したときの race を防ぐためにトークン比較を入れた。"
+          "title": "辺が交差する図の描画",
+          "currentState": {
+            "storyTitle": "古い交差点：信号も車線もない",
+            "scenes": [
+              {
+                "title": "1. 並べる",
+                "actor": "arch-diagram",
+                "action": "<a href=\"#glossary:arch-diagram\">ArchitectureDiagram</a> がノードを3列グリッドに置く。",
+                "result": "並びはきれいだが、辺の絡まりは無視されている。",
+                "edgeRefs": [
+                  2
+                ]
+              },
+              {
+                "title": "2. 渡す",
+                "actor": "arch-diagram",
+                "action": "そのまま <a href=\"#glossary:svelte-flow\">Svelte Flow</a> に描画依頼する。",
+                "result": "辺は最短直線で引かれ、行をまたぐと重なる。",
+                "edgeRefs": [
+                  3
+                ]
+              }
+            ],
+            "takeaway": "配置と辺ルーティングが完全に分離されていなかったので、辺の混雑はレイアウトでは救えなかった。",
+            "architectureDiagrams": {
+              "container": {
+                "edges": [
+                  {
+                    "order": 1,
+                    "source": "viewer-app",
+                    "target": "elkjs",
+                    "label": "未使用",
+                    "data": "（旧構成では呼ばない）",
+                    "edgeStyle": "dotted"
+                  }
+                ]
+              },
+              "component": {
+                "edges": [
+                  {
+                    "order": 2,
+                    "source": "arch-diagram",
+                    "target": "glossary-node",
+                    "label": "並べる",
+                    "data": "grid 座標"
+                  },
+                  {
+                    "order": 3,
+                    "source": "arch-diagram",
+                    "target": "svelte-flow",
+                    "label": "渡す",
+                    "data": "Node[] + Edge[]"
+                  }
+                ]
+              }
+            }
+          },
+          "proposedState": {
+            "storyTitle": "新しい交差点：街路図に沿って道を引く",
+            "scenes": [
+              {
+                "title": "1-3. 配置を計算する",
+                "actor": "elk-layout",
+                "action": "<a href=\"#glossary:arch-diagram\">ArchitectureDiagram</a> が <a href=\"#glossary:elk-layout\">computeElkLayout</a> に依頼し、内部で <a href=\"#glossary:elkjs\">elkjs</a> に委譲して座標を受け取る。",
+                "result": "階層と交差最小化を考慮した座標が手に入る。",
+                "edgeRefs": [
+                  1,
+                  4,
+                  5
+                ]
+              },
+              {
+                "title": "4-5. 辺を整える",
+                "actor": "route-edges",
+                "action": "<a href=\"#glossary:route-edges\">routeEdges</a> にノード絶対座標と生の辺を渡し、ハンドル割当とマージ済みの辺を受け取る。",
+                "result": "辺はそれぞれ「位置に応じた正しい入口・出口」を持つ。",
+                "edgeRefs": [
+                  6
+                ]
+              },
+              {
+                "title": "6. 描画する",
+                "actor": "svelte-flow",
+                "action": "Svelte Flow にレイアウト済みノードとルーティング済み辺を渡す。",
+                "result": "完成図が画面に出る。",
+                "edgeRefs": [
+                  3
+                ]
+              }
+            ],
+            "takeaway": "ELK が「配置」、routeEdges が「辺の整流」、Svelte Flow が「描画」と役割が分かれ、それぞれを独立にチューニングできるようになった。",
+            "architectureDiagrams": {
+              "container": {
+                "edges": [
+                  {
+                    "order": 1,
+                    "source": "viewer-app",
+                    "target": "elkjs",
+                    "label": "レイアウト計算を委譲",
+                    "data": "ElkNode"
+                  }
+                ]
+              },
+              "component": {
+                "edges": [
+                  {
+                    "order": 2,
+                    "source": "arch-diagram",
+                    "target": "glossary-node",
+                    "label": "ノード描画",
+                    "data": "Node + handles"
+                  },
+                  {
+                    "order": 3,
+                    "source": "arch-diagram",
+                    "target": "svelte-flow",
+                    "label": "描画依頼",
+                    "data": "Node[] + Edge[]"
+                  }
+                ]
+              },
+              "code": {
+                "edges": [
+                  {
+                    "order": 4,
+                    "source": "elk-layout",
+                    "target": "elk-layout",
+                    "label": "compound graph 構築",
+                    "data": "ElkNode",
+                    "edgeStyle": "dashed"
+                  },
+                  {
+                    "order": 5,
+                    "source": "elk-layout",
+                    "target": "route-edges",
+                    "label": "ハンドル割当を依頼",
+                    "data": "positions + edges"
+                  },
+                  {
+                    "order": 6,
+                    "source": "route-edges",
+                    "target": "elk-layout",
+                    "label": "ルーティング結果を返す",
+                    "data": "RoutedEdgeOutput[]"
+                  }
+                ]
+              }
+            }
+          }
         }
       ],
       "safeguards": [
         "`computeElkLayout` の呼び出しは `layoutToken` を発行し、await 完了時に最新トークンと一致しない場合は結果を破棄する。",
-        "ELK が落ちた場合は `console.error` を出し、UI は最後に成功した配置のままにする（空の絵に戻さない）。",
-        "後方互換のため `diagram` prop は受け取り続けるが、`nodePositions` は意図的に無視する（API は壊さない）。"
+        "ELK が落ちた場合は `console.error` を出し、UI は最後に成功した配置のままにする（空の絵に戻さない）。"
       ],
       "takeaway": "配置の責任を ELK に寄せきったことで、ノード追加時もレイアウトを手で調整する必要がなくなった。"
     },
     {
       "title": "双方向辺の処理：2本の絡まり → 1本にマージ",
-      "description": "A→B と B→A が両方ある場合、旧描画では同じハンドル組に2本が積み重なってラベルも重なっていた。<a href=\"#glossary:route-edges\">routeEdges</a> がペアを検出して1本に統合し、両端に矢印を立てる。",
-      "currentState": {
-        "description": "辺ごとに独立して描画されるため、同じノード間を行き来する辺は同じ線上に乗り、ラベル同士が衝突する。",
-        "architectureEdges": [
-          {
-            "order": 1,
-            "source": "arch-diagram",
-            "target": "svelte-flow",
-            "label": "edge A→B",
-            "data": "順方向"
-          },
-          {
-            "order": 2,
-            "source": "svelte-flow",
-            "target": "arch-diagram",
-            "label": "edge B→A",
-            "data": "逆方向（重なる）"
-          }
-        ],
-        "storyTitle": "古い往復路：上り下りが同じ車線",
-        "scenes": [
-          {
-            "title": "1-2. 同じ線に重なる",
-            "actor": "svelte-flow",
-            "action": "2本の辺がそれぞれ独立に直線で描かれる。",
-            "result": "視覚的に1本に見え、ラベルは重なる。",
-            "edgeRefs": [
-              1,
-              2
-            ]
-          }
-        ],
-        "takeaway": "辺を「ペアの集合」として認識する層が無かったため、双方向の関係を表現する手段が無かった。"
-      },
-      "proposedState": {
-        "description": "<a href=\"#glossary:route-edges\">routeEdges</a> が unordered ペアでグループ化し、逆向きが含まれていれば `markerStart` + `markerEnd` の双方向矢印を立てた1本の辺にする。ラベルは `→` / `←` プレフィックスで合成。",
-        "architectureEdges": [
-          {
-            "order": 1,
-            "source": "route-edges",
-            "target": "pick-sides",
-            "label": "ペアの方角を問い合わせる",
-            "data": "(A, B)"
-          },
-          {
-            "order": 2,
-            "source": "pick-sides",
-            "target": "route-edges",
-            "label": "答える",
-            "data": "{source: right, target: left}"
-          },
-          {
-            "order": 3,
-            "source": "route-edges",
-            "target": "svelte-flow",
-            "label": "マージ済み辺を渡す",
-            "data": "1本 + markerStart/markerEnd"
-          }
-        ],
-        "storyTitle": "新しい往復路：双方向標識を1本立てる",
-        "scenes": [
-          {
-            "title": "1-2. 方角を決める",
-            "actor": "pick-sides",
-            "action": "<a href=\"#glossary:route-edges\">routeEdges</a> が <a href=\"#glossary:pick-sides\">pickSides</a> に2ノードの位置関係を渡し、ハンドル組を受け取る。",
-            "result": "(A, B) のハンドル組は (A→B でも B→A でも) 同一になる。",
-            "edgeRefs": [
-              1,
-              2
-            ]
-          },
-          {
-            "title": "3. 1本に束ねて渡す",
-            "actor": "route-edges",
-            "action": "逆向きがあれば双方向矢印を立て、ラベルを合成して1本だけ <a href=\"#glossary:svelte-flow\">Svelte Flow</a> に渡す。",
-            "result": "視覚的にも1本、ラベルも重ならず読める。",
-            "edgeRefs": [
-              3
-            ]
-          }
-        ],
-        "takeaway": "「ノード対あたり辺は最大1本」を強制することで、双方向の関係を視覚的に正しく表現できるようになった。"
-      },
-      "comparison": [
+      "examples": [
         {
-          "label": "辺の単位",
-          "current": "個々の `(source, target, order)`",
-          "proposed": "unordered ペア `{a, b}` ごとに集約",
-          "note": "プライマリ方向は最小 order の辺で決定し、時系列の自然さを保つ。"
-        },
-        {
-          "label": "ハンドルの決まり方",
-          "current": "edge ごとに `sourcePosition` を独立指定",
-          "proposed": "2ノードの相対位置から `pickSides` が一意に決定",
-          "note": "結果が geometry だけで決まるため、A→B と B→A が必ず同じ車線に乗る。"
-        },
-        {
-          "label": "ラベル",
-          "current": "辺ごとに別ラベル（重なる）",
-          "proposed": "マージ時は `→` / `←` を付けて改行で合成（`white-space: pre`）"
+          "title": "双方向のペア",
+          "currentState": {
+            "storyTitle": "古い往復路：上り下りが同じ車線",
+            "scenes": [
+              {
+                "title": "1-2. 同じ線に重なる",
+                "actor": "svelte-flow",
+                "action": "2本の辺がそれぞれ独立に直線で描かれる。",
+                "result": "視覚的に1本に見え、ラベルは重なる。",
+                "edgeRefs": [
+                  1,
+                  2
+                ]
+              }
+            ],
+            "takeaway": "辺を「ペアの集合」として認識する層が無かったため、双方向の関係を表現する手段が無かった。",
+            "architectureDiagrams": {
+              "component": {
+                "edges": [
+                  {
+                    "order": 1,
+                    "source": "arch-diagram",
+                    "target": "svelte-flow",
+                    "label": "edge A→B",
+                    "data": "順方向"
+                  },
+                  {
+                    "order": 2,
+                    "source": "svelte-flow",
+                    "target": "arch-diagram",
+                    "label": "edge B→A",
+                    "data": "逆方向（重なる）"
+                  }
+                ]
+              }
+            }
+          },
+          "proposedState": {
+            "storyTitle": "新しい往復路：双方向標識を1本立てる",
+            "scenes": [
+              {
+                "title": "1-2. 方角を決める",
+                "actor": "route-edges",
+                "action": "<a href=\"#glossary:route-edges\">routeEdges</a> がノードの位置関係から、A↔B のハンドル組を一意に決める。",
+                "result": "(A, B) のハンドル組は (A→B でも B→A でも) 同一になる。",
+                "edgeRefs": [
+                  1,
+                  2
+                ]
+              },
+              {
+                "title": "3. 1本に束ねて渡す",
+                "actor": "route-edges",
+                "action": "逆向きがあれば双方向矢印を立て、ラベルを合成して1本だけ <a href=\"#glossary:svelte-flow\">Svelte Flow</a> に渡す。",
+                "result": "視覚的にも1本、ラベルも重ならず読める。",
+                "edgeRefs": [
+                  3
+                ]
+              }
+            ],
+            "takeaway": "「ノード対あたり辺は最大1本」を強制することで、双方向の関係を視覚的に正しく表現できるようになった。",
+            "architectureDiagrams": {
+              "component": {
+                "edges": [
+                  {
+                    "order": 3,
+                    "source": "arch-diagram",
+                    "target": "svelte-flow",
+                    "label": "マージ済み双方向辺",
+                    "data": "1本 + markerStart/markerEnd"
+                  }
+                ]
+              },
+              "code": {
+                "edges": [
+                  {
+                    "order": 1,
+                    "source": "route-edges",
+                    "target": "route-edges",
+                    "label": "pickSides で方角を決める",
+                    "data": "(A, B) → 同じ側",
+                    "edgeStyle": "dashed"
+                  },
+                  {
+                    "order": 2,
+                    "source": "route-edges",
+                    "target": "route-edges",
+                    "label": "順/逆ペアをグルーピング",
+                    "data": "Edge[] → Pair[]",
+                    "edgeStyle": "dashed"
+                  }
+                ]
+              }
+            }
+          }
         }
       ],
       "safeguards": [
@@ -383,83 +370,6 @@
         "primary 方向は最小 order の辺。これにより番号付きフロー（1, 2, 3...）の自然さを壊さない。"
       ],
       "takeaway": "辺の本数を構造的に絞ることで、双方向の絡まりは原理的に発生しない。"
-    },
-    {
-      "title": "ハンドル選択：位置から決める一意ルール",
-      "description": "<a href=\"#glossary:glossary-node\">ArchitectureGlossaryNode</a> を 4辺 × source/target = 8 ハンドルに拡張し、どのハンドルを使うかは <a href=\"#glossary:pick-sides\">pickSides</a> が決める。手で `sourcePosition` を指定する必要がなくなった。",
-      "proposedState": {
-        "description": "ノードは常に8ハンドルを公開し、辺側で `sourceHandle` / `targetHandle` を指定するだけ。ハンドル id は `${side}-s` / `${side}-t` の規約に従う。",
-        "architectureEdges": [
-          {
-            "order": 1,
-            "source": "route-edges",
-            "target": "pick-sides",
-            "label": "位置を渡す",
-            "data": "PositionedNode × 2"
-          },
-          {
-            "order": 2,
-            "source": "pick-sides",
-            "target": "route-edges",
-            "label": "side を返す",
-            "data": "{source, target}"
-          },
-          {
-            "order": 3,
-            "source": "route-edges",
-            "target": "glossary-node",
-            "label": "handle id で接続",
-            "data": "right-s / left-t など"
-          }
-        ],
-        "storyTitle": "8つの入口を持つ駅舎",
-        "scenes": [
-          {
-            "title": "1-2. 方角を確定",
-            "actor": "pick-sides",
-            "action": "中心ベクトルの dx/dy 絶対値で支配軸を決め、`right↔left` か `bottom↔top` を返す。",
-            "result": "(A, B) と (B, A) で結果が対称（source/target が入れ替わるだけ）。",
-            "edgeRefs": [
-              1,
-              2
-            ]
-          },
-          {
-            "title": "3. 接続",
-            "actor": "glossary-node",
-            "action": "辺の `sourceHandle` / `targetHandle` に handle id を入れ、<a href=\"#glossary:glossary-node\">ArchitectureGlossaryNode</a> 上の対応するハンドルに繋ぐ。",
-            "result": "ノード側は何もしなくても、辺は常に「正しい辺」から出入りする。",
-            "edgeRefs": [
-              3
-            ]
-          }
-        ],
-        "takeaway": "ハンドル選択が純粋関数になったので、テストは `pickSides` 単体で書ける。"
-      },
-      "comparison": [
-        {
-          "label": "ノードのハンドル数",
-          "current": "2（targetPosition / sourcePosition で1個ずつ）",
-          "proposed": "8（4 sides × source/target）",
-          "note": "視覚的には小さなドットに統一して情報量は増やさない。"
-        },
-        {
-          "label": "ハンドル決定",
-          "current": "edge JSON で都度指定 or デフォルト固定",
-          "proposed": "geometry から純粋関数で導出",
-          "note": "geometry 変化に追従するので、レイアウトが変わってもハンドル指定を直す必要がない。"
-        }
-      ],
-      "safeguards": [
-        "ハンドル id 規約 (`top-s`, `top-t`, `right-s`, ...) は `edgeRouting.handleId()` に集約。コンポーネントとルーティングの両方で同じ関数を参照する形にする余地は残してある。",
-        "`pickSides` は dx と dy が等しい縁端ケースでは水平を優先する（`>=` 比較）。テストで明示的に固定。"
-      ],
-      "takeaway": "「位置から辺を決める」原則が、辺マージとハンドル割当の両方を支えている。"
     }
-  ],
-  "safeguards": [
-    "ELK は async。$effect 内で token guard を使い、stale な layout で UI を上書きしない。",
-    "diagram prop の `nodePositions` は受け取るが意図的に無視。後方互換と将来の制約レイアウト導入の両方に道を残している。",
-    "edge merging はテスト 10 件（pickSides 5 + routeEdges 5）でカバー済み。typecheck と build もパス。"
   ]
 }

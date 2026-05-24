@@ -4,6 +4,7 @@
   import '@xyflow/svelte/dist/style.css'
   import type { Node, Edge } from '@xyflow/svelte'
   import type {
+    C4Layer,
     DiagramOptions,
     EdgeRenderStyle,
     GlossaryItem,
@@ -14,6 +15,7 @@
   import {
     filterGlossaryToArchitectureDiagram,
   } from '../utils/filter'
+  import { GLOSSARY_TYPE_TO_LAYER } from '../utils/c4'
   import { findArchitectureTooltipItem } from '../utils/architectureTooltip'
   import { computeElkLayout, type ElkLayoutNode } from '../utils/elkLayout'
   import { routeEdges, toRoutedInput, type PositionedNode } from '../utils/edgeRouting'
@@ -25,6 +27,7 @@
   interface Props {
     glossary: GlossaryItem[]
     architectureEdges: ArchitectureEdge[]
+    layer: C4Layer
     diagram?: DiagramOptions
     isDiff?: boolean
     baseArchitectureEdges?: ArchitectureEdge[]
@@ -36,6 +39,7 @@
   const {
     glossary,
     architectureEdges,
+    layer,
     isDiff = false,
     baseArchitectureEdges = [],
   }: Props = $props()
@@ -47,44 +51,56 @@
   const GROUP_HEADER = 28
 
   const typeColors: Record<string, string> = {
-    term: '#ede9fe',
+    person: '#ffe4e6',
+    'external-system': '#fae8ff',
     client: '#e0f2fe',
     server: '#dbeafe',
     'cloud-service': '#cffafe',
-    class: '#fef3c7',
-    function: '#ffedd5',
     db: '#d1fae5',
+    class: '#fef3c7',
+    module: '#fef9c3',
+    function: '#ffedd5',
     table: '#ccfbf1',
+    interface: '#ecfccb',
   }
   const typeBorderColors: Record<string, string> = {
-    term: '#7c3aed',
+    person: '#e11d48',
+    'external-system': '#c026d3',
     client: '#0284c7',
     server: '#2563eb',
     'cloud-service': '#0891b2',
-    class: '#d97706',
-    function: '#ea580c',
     db: '#059669',
+    class: '#d97706',
+    module: '#ca8a04',
+    function: '#ea580c',
     table: '#0d9488',
+    interface: '#65a30d',
   }
   const groupBgColors: Record<string, string> = {
-    term: '#f5f3ff',
+    person: '#fff1f2',
+    'external-system': '#fdf4ff',
     client: '#f0f9ff',
     server: '#eff6ff',
     'cloud-service': '#ecfeff',
-    class: '#fffbeb',
-    function: '#fff7ed',
     db: '#ecfdf5',
+    class: '#fffbeb',
+    module: '#fefce8',
+    function: '#fff7ed',
     table: '#f0fdfa',
+    interface: '#f7fee7',
   }
   const defaultIcons: Record<string, string> = {
-    term: '📖',
+    person: '🧑',
+    'external-system': '🛰️',
     client: '💻',
     server: '🖥️',
     'cloud-service': '☁️',
-    class: '📦',
-    function: 'ƒ',
     db: '🗄️',
+    class: '📦',
+    module: '📚',
+    function: 'ƒ',
     table: '▦',
+    interface: '🧬',
   }
 
   function makeLeafStyle(item: GlossaryItem, isSelected: boolean): string {
@@ -190,13 +206,24 @@
     return unsubscribe
   })
 
-  const diagramGlossary = $derived(filterGlossaryToArchitectureDiagram(glossary, architectureEdges))
+  // Restrict the diagram strictly to glossary items that belong to its layer.
+  // Edges referencing other-layer items are dropped here as a defensive filter;
+  // normalizePlan also rejects such plans up-front.
+  const layerGlossary = $derived(glossary.filter((item) => GLOSSARY_TYPE_TO_LAYER[item.type] === layer))
+  const layerIds = $derived(new Set(layerGlossary.map((item) => item.id)))
+  const layerEdges = $derived(
+    architectureEdges.filter((edge) => layerIds.has(edge.source) && layerIds.has(edge.target))
+  )
+  const layerBaseEdges = $derived(
+    baseArchitectureEdges.filter((edge) => layerIds.has(edge.source) && layerIds.has(edge.target))
+  )
+  const diagramGlossary = $derived(filterGlossaryToArchitectureDiagram(layerGlossary, layerEdges))
   const diagramValidIds = $derived(new Set(diagramGlossary.map((item) => item.id)))
 
   const nodeTypes = { architectureGlossary: ArchitectureGlossaryNode }
 
   const diffEdges = $derived(
-    isDiff ? computeDiffEdges(baseArchitectureEdges, architectureEdges) : null
+    isDiff ? computeDiffEdges(layerBaseEdges, layerEdges) : null
   )
 
   let nodes = $state.raw<Node[]>([])
@@ -225,7 +252,7 @@
   let layoutToken = 0
   $effect(() => {
     const items = diagramGlossary
-    const rawEdges = architectureEdges
+    const rawEdges = layerEdges
     const token = ++layoutToken
     let cancelled = false
 
@@ -276,14 +303,14 @@
 
     const inputs = diffEdges
       ? diffEdges.map((e) => {
-          const raw = architectureEdges.find((edge) => edge.order === e.order)
+          const raw = layerEdges.find((edge) => edge.order === e.order)
           const composedStyle = `${edgeStyle(e.status)} ${renderStyle(raw?.edgeStyle)}`.trim()
           return toRoutedInput(e, composedStyle, {
             animated: raw?.animated ?? e.status === 'added',
             type: raw?.edgeType,
           })
         })
-      : architectureEdges.map((e) =>
+      : layerEdges.map((e) =>
           toRoutedInput(e, renderStyle(e.edgeStyle), {
             animated: e.animated,
             type: e.edgeType,

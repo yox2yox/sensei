@@ -35,16 +35,40 @@ export const Metaphor = z
 const Position = z.enum(['top', 'right', 'bottom', 'left'])
 const EdgeType = z.enum(['default', 'straight', 'step', 'smoothstep'])
 const EdgeStyle = z.enum(['solid', 'dashed', 'dotted', 'bold'])
-const GlossaryType = z.enum([
-  'term',
+
+export const C4Layer = z.enum(['context', 'container', 'component', 'code'])
+
+export const GlossaryType = z.enum([
+  // Context layer
+  'person',
+  'external-system',
+  // Container layer
   'client',
   'server',
   'cloud-service',
-  'class',
-  'function',
   'db',
+  // Component layer
+  'class',
+  'module',
+  // Code layer
+  'function',
   'table',
+  'interface',
 ])
+
+export const GLOSSARY_TYPE_TO_LAYER = {
+  'person': 'context',
+  'external-system': 'context',
+  'client': 'container',
+  'server': 'container',
+  'cloud-service': 'container',
+  'db': 'container',
+  'class': 'component',
+  'module': 'component',
+  'function': 'code',
+  'table': 'code',
+  'interface': 'code',
+}
 
 export const ArchitectureEdge = z
   .object({
@@ -111,10 +135,25 @@ export const GlossaryItem = z
   })
   .strict()
 
+export const ArchitectureDiagram = z
+  .object({
+    edges: z.array(ArchitectureEdge),
+    diagramOptions: DiagramOptions.optional(),
+  })
+  .strict()
+
+export const ArchitectureDiagrams = z
+  .object({
+    context: ArchitectureDiagram.optional(),
+    container: ArchitectureDiagram.optional(),
+    component: ArchitectureDiagram.optional(),
+    code: ArchitectureDiagram.optional(),
+  })
+  .strict()
+
 export const State = z
   .object({
-    architectureDiagram: z.array(ArchitectureEdge).optional(),
-    diagramOptions: DiagramOptions.optional(),
+    architectureDiagrams: ArchitectureDiagrams.optional(),
     storyTitle: z.string().optional(),
     scenes: z.array(StoryScene).optional(),
     takeaway: z.string().optional(),
@@ -133,6 +172,7 @@ export const Example = z
 export const Concern = z
   .object({
     title: z.string(),
+    workflowPosition: z.string().optional(),
     examples: z.array(Example).optional(),
     safeguards: z.array(z.string()).optional(),
     takeaway: z.string().optional(),
@@ -150,6 +190,8 @@ export const Plan = z
   })
   .strict()
 
+const LAYERS = ['context', 'container', 'component', 'code']
+
 // 参照整合性チェック。zod / JSON Schema では表現できない制約を扱う。
 // 戻り値は { path: string, message: string } の配列（空なら問題なし）。
 export function validateReferences(plan) {
@@ -158,12 +200,14 @@ export function validateReferences(plan) {
 
   // glossary id 集合・重複検出
   const ids = new Set()
+  const itemById = new Map()
   for (let i = 0; i < plan.glossary.length; i++) {
     const item = plan.glossary[i]
     if (ids.has(item.id)) {
       push(`glossary[${i}].id`, `duplicate glossary id: ${JSON.stringify(item.id)}`)
     }
     ids.add(item.id)
+    itemById.set(item.id, item)
   }
 
   // parentId は ids に存在
@@ -204,22 +248,90 @@ export function validateReferences(plan) {
   // state 単位の検査
   const checkState = (statePath, state) => {
     if (!state) return
-    const edges = state.architectureDiagram ?? []
+    const diagrams = state.architectureDiagrams ?? {}
+    // edge order must be unique within a state and together form 1..N so that
+    // scene.edgeRefs can resolve unambiguously across layers.
     const orderSet = new Set()
+    const orderLocations = new Map()
 
-    edges.forEach((edge, i) => {
-      const ePath = `${statePath}.architectureDiagram[${i}]`
-      if (edge.order !== i + 1) {
-        push(`${ePath}.order`, `order must be ${i + 1} (consecutive from 1), got ${edge.order}`)
+    for (const layer of LAYERS) {
+      const diagram = diagrams[layer]
+      if (!diagram) continue
+      const dPath = `${statePath}.architectureDiagrams.${layer}`
+      diagram.edges.forEach((edge, i) => {
+        const ePath = `${dPath}.edges[${i}]`
+        if (orderSet.has(edge.order)) {
+          push(
+            `${ePath}.order`,
+            `duplicate edge order ${edge.order} across diagrams in the same state (also seen at ${orderLocations.get(edge.order)})`,
+          )
+        }
+        orderSet.add(edge.order)
+        orderLocations.set(edge.order, ePath)
+        for (const role of ['source', 'target']) {
+          const id = edge[role]
+          if (!ids.has(id)) {
+            push(`${ePath}.${role}`, `unknown glossary id: ${JSON.stringify(id)}`)
+            continue
+          }
+          const item = itemById.get(id)
+          if (GLOSSARY_TYPE_TO_LAYER[item.type] !== layer) {
+            push(
+              `${ePath}.${role}`,
+              `glossary id ${JSON.stringify(id)} has type ${JSON.stringify(item.type)} ` +
+                `which belongs to layer ${JSON.stringify(GLOSSARY_TYPE_TO_LAYER[item.type])}, ` +
+                `but this diagram is for layer ${JSON.stringify(layer)}`,
+            )
+          }
+        }
+      })
+
+      const dOptions = diagram.diagramOptions
+      if (dOptions?.nodePositions) {
+        for (const key of Object.keys(dOptions.nodePositions)) {
+          if (!ids.has(key)) {
+            push(
+              `${dPath}.diagramOptions.nodePositions[${JSON.stringify(key)}]`,
+              `unknown glossary id`,
+            )
+          }
+        }
       }
-      orderSet.add(edge.order)
-      if (!ids.has(edge.source)) {
-        push(`${ePath}.source`, `unknown glossary id: ${JSON.stringify(edge.source)}`)
+      if (dOptions?.edges) {
+        const orderSetForLayer = new Set(diagram.edges.map((e) => e.order))
+        for (const key of Object.keys(dOptions.edges)) {
+          const ePath = `${dPath}.diagramOptions.edges[${JSON.stringify(key)}]`
+          if (/^\d+$/.test(key)) {
+            if (!orderSetForLayer.has(Number(key))) {
+              push(ePath, `references unknown architecture edge order in this layer: ${key}`)
+            }
+          } else if (key.includes('->')) {
+            const [src, tgt] = key.split('->')
+            if (!ids.has(src)) push(ePath, `source id unknown: ${JSON.stringify(src)}`)
+            if (!ids.has(tgt)) push(ePath, `target id unknown: ${JSON.stringify(tgt)}`)
+          } else {
+            push(
+              ePath,
+              `key must be either "<order>" (e.g. "1") or "source->target"`,
+            )
+          }
+        }
       }
-      if (!ids.has(edge.target)) {
-        push(`${ePath}.target`, `unknown glossary id: ${JSON.stringify(edge.target)}`)
+    }
+
+    // The union of all orders across the layers in this state should be 1..N.
+    if (orderSet.size > 0) {
+      const sorted = [...orderSet].sort((a, b) => a - b)
+      for (let i = 0; i < sorted.length; i++) {
+        if (sorted[i] !== i + 1) {
+          push(
+            `${statePath}.architectureDiagrams`,
+            `edge orders across layers must form 1..${sorted.length} (got [${sorted.join(', ')}])`,
+          )
+          break
+        }
       }
-    })
+    }
 
     // scenes
     const scenes = state.scenes ?? []
@@ -237,46 +349,31 @@ export function validateReferences(plan) {
         }
       })
     })
-
-    // diagramOptions
-    const diagram = state.diagramOptions
-    if (diagram?.nodePositions) {
-      for (const key of Object.keys(diagram.nodePositions)) {
-        if (!ids.has(key)) {
-          push(
-            `${statePath}.diagramOptions.nodePositions[${JSON.stringify(key)}]`,
-            `unknown glossary id`,
-          )
-        }
-      }
-    }
-    if (diagram?.edges) {
-      for (const key of Object.keys(diagram.edges)) {
-        const ePath = `${statePath}.diagramOptions.edges[${JSON.stringify(key)}]`
-        if (/^\d+$/.test(key)) {
-          if (!orderSet.has(Number(key))) {
-            push(ePath, `references unknown architecture edge order in this state: ${key}`)
-          }
-        } else if (key.includes('->')) {
-          const [src, tgt] = key.split('->')
-          if (!ids.has(src)) push(ePath, `source id unknown: ${JSON.stringify(src)}`)
-          if (!ids.has(tgt)) push(ePath, `target id unknown: ${JSON.stringify(tgt)}`)
-        } else {
-          push(
-            ePath,
-            `key must be either "<order>" (e.g. "1") or "source->target"`,
-          )
-        }
-      }
-    }
   }
 
   ;(plan.pairs ?? []).forEach((concern, i) => {
+    // Collect every architecture diagram layer used across all examples and
+    // both states of this pair. A pair that touches diagrams at all must span
+    // at least 2 C4 layers (SKILL.md「単一レイヤーだけのプランは禁止」).
+    const pairLayers = new Set()
     ;(concern.examples ?? []).forEach((example, j) => {
       const base = `pairs[${i}].examples[${j}]`
       checkState(`${base}.currentState`, example.currentState)
       checkState(`${base}.proposedState`, example.proposedState)
+      for (const sn of ['currentState', 'proposedState']) {
+        const st = example[sn]
+        if (!st?.architectureDiagrams) continue
+        for (const layer of LAYERS) {
+          if (st.architectureDiagrams[layer]?.edges?.length) pairLayers.add(layer)
+        }
+      }
     })
+    if (pairLayers.size === 1) {
+      push(
+        `pairs[${i}]`,
+        `pair uses only the ${JSON.stringify([...pairLayers][0])} layer; SKILL.md requires at least 2 C4 layers per pair (zoom-in narrative). Add diagrams in another layer or merge this pair with a related one.`,
+      )
+    }
   })
 
   return errors
