@@ -1,8 +1,34 @@
 import { describe, it, expect } from 'vitest'
 import { validate, escapeForScriptTag, embedPlan } from '../make_plan.mjs'
 
+// Every Concern requires a Gherkin behavior; inject a minimal valid one into
+// any pair that doesn't define its own so the fixtures stay focused on the
+// property under test.
+const okBehavior = {
+  feature: 'F',
+  scenarios: [
+    {
+      name: 'S',
+      steps: [
+        { keyword: 'given', text: 'g' },
+        { keyword: 'when', text: 'w' },
+        { keyword: 'then', text: 't' },
+      ],
+    },
+  ],
+}
+
+function withDefaultBehavior(pairs) {
+  if (!Array.isArray(pairs)) return pairs
+  return pairs.map((p) =>
+    p && typeof p === 'object' && !Array.isArray(p) && !('behavior' in p)
+      ? { ...p, behavior: okBehavior }
+      : p,
+  )
+}
+
 function makePlan(overrides = {}) {
-  return {
+  const plan = {
     title: 't',
     description: 'd',
     glossary: [
@@ -14,6 +40,8 @@ function makePlan(overrides = {}) {
     pairs: [{ title: 'P' }],
     ...overrides,
   }
+  plan.pairs = withDefaultBehavior(plan.pairs)
+  return plan
 }
 
 const okEdge = { order: 1, source: 'a', target: 'b', label: 'calls', data: 'X' }
@@ -49,6 +77,12 @@ describe('validate (make_plan.mjs)', () => {
   it('accepts a concern with neither examples nor takeaway (viewer will filter)', () => {
     const plan = makePlan({ pairs: [{ title: 'empty' }] })
     expect(() => validate(plan)).not.toThrow()
+  })
+
+  it('rejects a concern that has no behavior (Gherkin is required)', () => {
+    const plan = makePlan({ pairs: [{ title: 'P' }] })
+    delete plan.pairs[0].behavior
+    expect(() => validate(plan)).toThrow(/behavior/)
   })
 
   it('rejects when pairs is not an array', () => {

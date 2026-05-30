@@ -169,10 +169,50 @@ export const Example = z
   })
   .strict()
 
+export const BehaviorStep = z
+  .object({
+    keyword: z.enum(['given', 'when', 'then', 'and', 'but']),
+    text: z.string(),
+    table: z.array(z.array(z.string())).optional(),
+  })
+  .strict()
+
+export const BehaviorBackground = z
+  .object({
+    steps: z.array(BehaviorStep).min(1),
+  })
+  .strict()
+
+export const BehaviorExamples = z
+  .object({
+    header: z.array(z.string()),
+    rows: z.array(z.array(z.string())),
+  })
+  .strict()
+
+export const BehaviorScenario = z
+  .object({
+    name: z.string(),
+    tags: z.array(z.string()).optional(),
+    steps: z.array(BehaviorStep).min(1),
+    examples: BehaviorExamples.optional(),
+  })
+  .strict()
+
+export const Behavior = z
+  .object({
+    feature: z.string(),
+    description: z.string().optional(),
+    background: BehaviorBackground.optional(),
+    scenarios: z.array(BehaviorScenario).min(1),
+  })
+  .strict()
+
 export const Concern = z
   .object({
     title: z.string(),
     workflowPosition: z.string().optional(),
+    behavior: Behavior,
     examples: z.array(Example).optional(),
     safeguards: z.array(z.string()).optional(),
     takeaway: z.string().optional(),
@@ -352,6 +392,18 @@ export function validateReferences(plan) {
   }
 
   ;(plan.pairs ?? []).forEach((concern, i) => {
+    // Each concern must register a Gherkin behavior whose scenarios each assert
+    // an outcome. A scenario with no `then` step is not an acceptance criterion.
+    ;(concern.behavior?.scenarios ?? []).forEach((scenario, j) => {
+      const hasThen = (scenario.steps ?? []).some((s) => s.keyword === 'then')
+      if (!hasThen) {
+        push(
+          `pairs[${i}].behavior.scenarios[${j}]`,
+          `scenario ${JSON.stringify(scenario.name)} has no "then" step; every Gherkin scenario must assert an outcome (受け入れ条件)`,
+        )
+      }
+    })
+
     // Collect every architecture diagram layer used across all examples and
     // both states of this pair. A pair that touches diagrams at all must span
     // at least 2 C4 layers (SKILL.md「単一レイヤーだけのプランは禁止」).

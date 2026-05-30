@@ -94,9 +94,43 @@ export interface Example {
   proposedState?: FlowState
 }
 
+export type BehaviorStepKeyword = 'given' | 'when' | 'then' | 'and' | 'but'
+
+export interface BehaviorStep {
+  keyword: BehaviorStepKeyword
+  text: string
+  table?: string[][]
+}
+
+export interface BehaviorBackground {
+  steps: BehaviorStep[]
+}
+
+export interface BehaviorExamples {
+  header: string[]
+  rows: string[][]
+}
+
+export interface BehaviorScenario {
+  name: string
+  tags?: string[]
+  steps: BehaviorStep[]
+  examples?: BehaviorExamples
+}
+
+export interface Behavior {
+  feature: string
+  description?: string
+  background?: BehaviorBackground
+  scenarios: BehaviorScenario[]
+}
+
 export interface Concern {
   title: string
   workflowPosition?: string
+  // 各関心領域に必須の Gherkin 振る舞い仕様。schema/zod では必須だが、
+  // 旧 plan JSON でも viewer が壊れないよう描画側では optional 扱いにする。
+  behavior?: Behavior
   examples?: Example[]
   safeguards?: string[]
   takeaway?: string

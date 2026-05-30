@@ -34,6 +34,8 @@ description: 実装計画、アーキテクチャ変更、前後比較、機能�
 
    特に注意: アーキテクチャ図は [C4 モデル](https://c4model.com/) の `context / container / component / code` の 4 レイヤーに分かれている。`glossary[].type` でレイヤーが一意に決まり、各 `architectureDiagrams.{layer}.edges` の source/target にはそのレイヤーに属する type の glossary しか指定できない。必要なレイヤーだけ図を描けばよく、4 枚すべて必須ではない。
 
+   必須: 各関心領域（`pairs[]` = Concern）には **`behavior`（Gherkin 記法のふるまい仕様）を必ず登録する**。これがないと validator がエラーを返す。詳細は下記「ふるまい仕様（Gherkin）」を参照。
+
 2. **ヘルパースクリプトに JSON を渡してファイルを生成する**。JSON ファイルのパスまたは stdin と、出力 basename を渡します。
 
    ```bash
@@ -75,6 +77,19 @@ description: 実装計画、アーキテクチャ変更、前後比較、機能�
 - **単一レイヤーだけのプランは禁止**です（Container だけ・Code だけはダメ）。最低 2 レイヤー、できれば 3 レイヤーを使い、ズームインの動きで構造を見せます。Code だけだと「コードリーディング」に、Container だけだと「物流の話」に縮退します。読者は構造を理解したいのであって、線をなぞりたいのではありません。
 - **最初の pair は『今回の変更が触る範囲の、始まりから終わりまで』を 1 本通します**。小さなツールなら「ユーザー入力 → 出力」までシステム全体になりますが、大きなシステムなら**対象 API / 対象機能の入口から出口まで**に絞り、無関係な経路は含めません（例: 認証エンドポイントの改修なら、認証 API の request → controller → auth service → token store → response までで止め、他のエンドポイントや管理画面は出さない）。登場する主要モジュール・サービスはここで一通り顔見せします。各 pair は **`workflowPosition` フィールド**にその pair が end-to-end フロー上のどの工程かを短い語句で書きます（最初の pair は「全体俯瞰」、後続は「type 選択工程」「validator 検査工程」など）。viewer はこれをタイトル横にバッジで表示するので、読者はどの pair を読んでも「全体のどこの話か」を即座に把握できます。
 - **各 pair はアーキテクチャ図で最低 2 つの C4 レイヤーをまたぐ必要があります** (validator が機械的にチェックします)。Container だけ・Code だけのような単一レイヤー pair はエラーになります。図がまったく無い説明だけの pair (`safeguards` と `takeaway` のみ) は例外として許容されます。
+
+# ふるまい仕様（Gherkin）
+
+各関心領域（`pairs[]`）には、その領域が満たすべきシステムの振る舞いを **Gherkin 記法で構造化した `behavior` を必ず付けます**。平文の箇条書きではなく、`plan.schema.json` の `Behavior` 構造（`feature` / `description` / `background` / `scenarios[]` / 各 step は `keyword`+`text`）に沿った JSON で書きます。viewer はこれを Given/When/Then の色分けカードとして整形表示するので、平文テキストとして書く必要はありません。
+
+- **`feature`** … この関心領域が提供する機能を 1 行で（`Feature:` 相当）。
+- **`description`** … `As a <役割> / I want <要求> / So that <価値>` 形式を推奨（任意）。
+- **`scenarios[]`** … 代表例（happy-path）と**エッジケース・異常系を網羅的に**列挙する。機能を網羅的に説明するための核なので、正常系 1 本で終わらせない。
+- 各 step の **`keyword`** は `given` / `when` / `then` / `and` / `but` の小文字。**すべての scenario に最低 1 つ `then`** を入れる（結果の表明がない scenario は受け入れ条件にならず、validator がエラーにする）。
+- 表形式の前提・期待値は step の `table`、パラメータ化した複数ケースは scenario の `examples`（Scenario Outline）を使う。
+- step の `text` 内でも glossary リンク（`<a href="#glossary:ID">label</a>`）を使ってよい。固有名詞には積極的にリンクを付ける。
+
+**実装計画を立てるときは、この `behavior` の各 scenario を「受け入れ条件（acceptance criteria）」として扱います**。計画した実装は、登録した Given/When/Then を満たすことがゴールであり、`examples` / `scenes` / `architectureDiagrams` はその受け入れ条件をどう満たすかの解説と位置づけます。説明や計画が機能を網羅できているかは、まず `behavior` の scenario を出し切ってから、それを満たす設計を描く順で進めると漏れがありません。
 
 # glossaryリンクの付け方
 

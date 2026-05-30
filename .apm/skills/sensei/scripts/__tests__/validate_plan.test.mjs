@@ -3,8 +3,33 @@ import { describe, it, expect } from 'vitest'
 import { validatePlan } from '../validate_plan.mjs'
 import { validateReferences } from '../lib/plan-schema.zod.mjs'
 
+// Minimal valid Gherkin behavior. Every Concern requires one, so test fixtures
+// inject this into any pair that doesn't supply its own.
+const okBehavior = {
+  feature: 'F',
+  scenarios: [
+    {
+      name: 'S',
+      steps: [
+        { keyword: 'given', text: 'g' },
+        { keyword: 'when', text: 'w' },
+        { keyword: 'then', text: 't' },
+      ],
+    },
+  ],
+}
+
+function withDefaultBehavior(pairs) {
+  if (!Array.isArray(pairs)) return pairs
+  return pairs.map((p) =>
+    p && typeof p === 'object' && !Array.isArray(p) && !('behavior' in p)
+      ? { ...p, behavior: okBehavior }
+      : p,
+  )
+}
+
 function basePlan(overrides = {}) {
-  return {
+  const plan = {
     title: 't',
     description: 'd',
     glossary: [
@@ -16,6 +41,8 @@ function basePlan(overrides = {}) {
     pairs: [{ title: 'P' }],
     ...overrides,
   }
+  plan.pairs = withDefaultBehavior(plan.pairs)
+  return plan
 }
 
 const okEdge = { order: 1, source: 'a', target: 'b', label: 'calls', data: 'X' }
@@ -81,6 +108,68 @@ describe('validatePlan (JSON Schema + zod)', () => {
     const result = validatePlan(rest)
     expect(result.ok).toBe(false)
     expect(result.errors.some((e) => /pairs/.test(e.message))).toBe(true)
+  })
+
+  it('reports json-schema error when a pair is missing its behavior', () => {
+    const plan = basePlan({ pairs: [{ title: 'P' }] })
+    delete plan.pairs[0].behavior
+    const result = validatePlan(plan)
+    expect(result.ok).toBe(false)
+    expect(result.errors.some((e) => e.source === 'json-schema')).toBe(true)
+    expect(result.errors.some((e) => /behavior/.test(e.message))).toBe(true)
+  })
+
+  it('accepts a pair carrying a structured Gherkin behavior', () => {
+    const plan = basePlan({
+      pairs: [
+        {
+          title: 'P',
+          behavior: {
+            feature: 'ログイン',
+            description: 'As a 利用者 / I want ログインしたい / So that 機能を使える',
+            background: { steps: [{ keyword: 'given', text: 'システムが起動している' }] },
+            scenarios: [
+              {
+                name: '正しい資格情報',
+                tags: ['happy-path'],
+                steps: [
+                  { keyword: 'given', text: '登録済みユーザーがいる' },
+                  { keyword: 'when', text: '正しいパスワードを入力する' },
+                  { keyword: 'then', text: 'ログインに成功する' },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+    })
+    const result = validatePlan(plan)
+    expect(result.ok).toBe(true)
+  })
+
+  it('reports a references error when a scenario has no "then" step', () => {
+    const plan = basePlan({
+      pairs: [
+        {
+          title: 'P',
+          behavior: {
+            feature: 'F',
+            scenarios: [
+              {
+                name: 'no-outcome',
+                steps: [
+                  { keyword: 'given', text: 'g' },
+                  { keyword: 'when', text: 'w' },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+    })
+    const result = validatePlan(plan)
+    expect(result.ok).toBe(false)
+    expect(result.errors.some((e) => /no "then" step/.test(e.message))).toBe(true)
   })
 
   it('rejects extra unknown properties (additionalProperties=false)', () => {

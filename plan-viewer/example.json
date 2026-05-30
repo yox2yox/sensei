@@ -173,6 +173,101 @@
   "pairs": [
     {
       "title": "ログインフロー",
+      "behavior": {
+        "feature": "ログイン認証",
+        "description": "As a 宿泊者 / I want 正しい資格情報でログインしたい / So that 滞在中に使える部屋キー（トークン）を受け取れる",
+        "background": {
+          "steps": [
+            {
+              "keyword": "given",
+              "text": "システムに登録済みの <a href=\"#glossary:guest\">宿泊者</a> が存在する"
+            }
+          ]
+        },
+        "scenarios": [
+          {
+            "name": "正しい資格情報でログインできる",
+            "tags": [
+              "happy-path"
+            ],
+            "steps": [
+              {
+                "keyword": "given",
+                "text": "宿泊者が有効なメールとパスワードを持っている"
+              },
+              {
+                "keyword": "when",
+                "text": "<a href=\"#glossary:login-page\">ログインページ</a> から資格情報を送信する"
+              },
+              {
+                "keyword": "then",
+                "text": "<a href=\"#glossary:auth-validator\">資格情報検証</a> が成功する"
+              },
+              {
+                "keyword": "and",
+                "text": "<a href=\"#glossary:token-issuer\">トークン発行</a> が <a href=\"#glossary:jwt-token\">JwtToken</a> を返す"
+              }
+            ]
+          },
+          {
+            "name": "誤ったパスワードは拒否される",
+            "tags": [
+              "edge-case"
+            ],
+            "steps": [
+              {
+                "keyword": "given",
+                "text": "宿泊者が誤ったパスワードを入力する"
+              },
+              {
+                "keyword": "when",
+                "text": "資格情報を送信する"
+              },
+              {
+                "keyword": "then",
+                "text": "ログインは 401 Unauthorized で拒否される"
+              },
+              {
+                "keyword": "but",
+                "text": "<a href=\"#glossary:jwt-token\">JwtToken</a> は発行されない"
+              }
+            ]
+          },
+          {
+            "name": "必須項目が欠けた入力を弾く",
+            "steps": [
+              {
+                "keyword": "given",
+                "text": "宿泊者が <field> を空のまま送信する"
+              },
+              {
+                "keyword": "when",
+                "text": "<a href=\"#glossary:auth-validator\">資格情報検証</a> が入力を検査する"
+              },
+              {
+                "keyword": "then",
+                "text": "入力エラー \"<message>\" が返る"
+              }
+            ],
+            "examples": {
+              "header": [
+                "field",
+                "message"
+              ],
+              "rows": [
+                [
+                  "メール",
+                  "メールアドレスは必須です"
+                ],
+                [
+                  "パスワード",
+                  "パスワードは必須です"
+                ]
+              ]
+            }
+          }
+        ]
+      },
       "takeaway": "受付台帳方式から部屋キー方式へ。Container 図を入れ替えるだけでなく、Component / Code レイヤーで責務を分解しているのが本質。",
       "safeguards": [
         "資格情報検証とトークン発行を別関数に分け、鍵の作成条件を一か所に閉じ込める。",
@@ -429,6 +524,60 @@
     },
     {
       "title": "認証済み API 呼び出し",
+      "behavior": {
+        "feature": "認証済み API 呼び出し",
+        "description": "As a ログイン済みの宿泊者 / I want 部屋キー（JWT）で API を呼びたい / So that 毎回受付に戻らずダッシュボードを開ける",
+        "scenarios": [
+          {
+            "name": "有効なトークンでデータを取得できる",
+            "tags": [
+              "happy-path"
+            ],
+            "steps": [
+              {
+                "keyword": "given",
+                "text": "<a href=\"#glossary:guest\">宿泊者</a> が有効な <a href=\"#glossary:jwt-token\">JwtToken</a> を持っている"
+              },
+              {
+                "keyword": "when",
+                "text": "<a href=\"#glossary:dashboard\">ダッシュボード</a> が <a href=\"#glossary:api-gateway\">APIゲートウェイ</a> を呼ぶ"
+              },
+              {
+                "keyword": "then",
+                "text": "<a href=\"#glossary:token-verifier\">トークン検証</a> が成功する"
+              },
+              {
+                "keyword": "and",
+                "text": "ダッシュボードのデータが返る"
+              }
+            ]
+          },
+          {
+            "name": "期限切れトークンは再ログインを促す",
+            "tags": [
+              "edge-case"
+            ],
+            "steps": [
+              {
+                "keyword": "given",
+                "text": "宿泊者の <a href=\"#glossary:jwt-token\">JwtToken</a> が期限切れである"
+              },
+              {
+                "keyword": "when",
+                "text": "API を呼び出す"
+              },
+              {
+                "keyword": "then",
+                "text": "401 Unauthorized が返る"
+              },
+              {
+                "keyword": "and",
+                "text": "再ログインが要求される"
+              }
+            ]
+          }
+        ]
+      },
       "takeaway": "Cookie の台帳引き方式から、毎回 JWT を見せる方式へ。Container と Code の両レイヤーで責務が変わる。",
       "examples": [
         {

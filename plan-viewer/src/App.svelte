@@ -8,6 +8,7 @@
   import MetaphorText from './components/MetaphorText.svelte'
   import ArchitectureDiagram from './components/ArchitectureDiagram.svelte'
   import NarrativePanel from './components/NarrativePanel.svelte'
+  import BehaviorSpec from './components/BehaviorSpec.svelte'
 
   interface LoadResult {
     plan: Plan | null
@@ -102,6 +103,10 @@
                 <MetaphorText text={concern.takeaway} glossary={plan.glossary} />
               </p>
             </div>
+          {/if}
+
+          {#if concern.behavior}
+            <BehaviorSpec behavior={concern.behavior} glossary={plan.glossary} />
           {/if}
 
           {#if concern.safeguards?.length}

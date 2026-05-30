@@ -31,7 +31,8 @@ function exampleHasContent(ex: Example): boolean {
 
 function concernHasVisibleContent(c: Concern): boolean {
   return Boolean(
-    (c.examples ?? []).some(exampleHasContent) ||
+    c.behavior ||
+      (c.examples ?? []).some(exampleHasContent) ||
       c.safeguards?.length ||
       c.takeaway,
   )

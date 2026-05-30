@@ -64,15 +64,70 @@
     },
     "Concern": {
       "type": "object",
-      "required": ["title"],
+      "required": ["title", "behavior"],
       "additionalProperties": false,
-      "description": "1つの設計関心事に対してその説明を行うセクション。複数の例を用いてわかりやすく説明する。",
+      "description": "1つの設計関心事に対してその説明を行うセクション。複数の例を用いてわかりやすく説明する。各関心領域には必ず behavior（Gherkin 記法のふるまい仕様）を登録する。",
       "properties": {
         "title":            { "type": "string", "description": "セクションヘッダ。空文字 '' でヘッダを非表示にできる" },
         "workflowPosition": { "type": "string", "description": "この pair が変更スコープの end-to-end フロー上のどの工程にあたるかを短い語句で示す。最初の pair は『全体俯瞰』、後続の pair は『type 選択工程』『validation 工程』のように位置づける。viewer はこれをタイトル横にバッジで表示する" },
+        "behavior":         { "$ref": "#/$defs/Behavior", "description": "この関心領域が満たすべきシステムの振る舞いを Gherkin 記法で構造化したもの（必須）。実装計画ではこの振る舞いがそのまま受け入れ条件（acceptance criteria）になる" },
         "examples":         { "type": "array", "items": { "$ref": "#/$defs/Example" }, "description": "対象の関心ごとに関する例示。代表例やエッジケースなど、設計を説明するために必要な例をいくつかピックアップして記載する。" },
         "safeguards":       { "type": "array", "items": { "type": "string" }, "description": "防御的設計・バリデーション・フォールバックなどの注意事項" },
         "takeaway":         { "type": "string", "description": "この設計を「ひと言で」まとめる。できるだけGlossaryItemで定義したアナロジーを使うなど分かりやすい表現を使って簡潔に表す。" }
+      }
+    },
+    "Behavior": {
+      "type": "object",
+      "required": ["feature", "scenarios"],
+      "additionalProperties": false,
+      "description": "Gherkin 記法（Feature / Background / Scenario / Given-When-Then）で構造化したシステムの振る舞い仕様。平文ではなく構造化 JSON として記述し、viewer が Gherkin として整形表示する。実装計画ではこれが受け入れ条件になる。",
+      "properties": {
+        "feature":     { "type": "string", "description": "Feature 名。この関心領域が提供する機能を1行で（Gherkin の `Feature:` に対応）" },
+        "description": { "type": "string", "description": "Feature 直下のナラティブ。`As a <役割> / I want <要求> / So that <価値>` 形式を推奨（任意）" },
+        "background":  { "$ref": "#/$defs/BehaviorBackground", "description": "全 scenario に共通する前提（Gherkin の `Background:`）。任意" },
+        "scenarios":   { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/BehaviorScenario" }, "description": "シナリオの一覧（最低1件）。代表的な振る舞いとエッジケースを網羅的に列挙する" }
+      }
+    },
+    "BehaviorBackground": {
+      "type": "object",
+      "required": ["steps"],
+      "additionalProperties": false,
+      "description": "Gherkin の Background。すべての scenario の前に実行される共通の前提ステップ群",
+      "properties": {
+        "steps": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/BehaviorStep" }, "description": "共通前提のステップ。通常は given / and を使う" }
+      }
+    },
+    "BehaviorScenario": {
+      "type": "object",
+      "required": ["name", "steps"],
+      "additionalProperties": false,
+      "description": "Gherkin の1つの Scenario（または examples を持つ場合は Scenario Outline）。Given-When-Then で1つの振る舞いを表す",
+      "properties": {
+        "name":     { "type": "string", "description": "シナリオ名（Gherkin の `Scenario:` に対応）。何を検証するかを簡潔に" },
+        "tags":     { "type": "array", "items": { "type": "string" }, "description": "`@tag` 形式の分類タグ（先頭の @ は不要。例: 'edge-case', 'happy-path'）。任意" },
+        "steps":    { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/BehaviorStep" }, "description": "Given → When → Then の順で並べるステップ群（最低1件）。少なくとも1つの then を含めること" },
+        "examples": { "$ref": "#/$defs/BehaviorExamples", "description": "Scenario Outline の Examples テーブル。指定するとこの scenario は Outline として扱われ、steps 内の `<param>` がテーブル値で展開される。任意" }
+      }
+    },
+    "BehaviorStep": {
+      "type": "object",
+      "required": ["keyword", "text"],
+      "additionalProperties": false,
+      "description": "Gherkin の1ステップ。キーワードと本文を持つ",
+      "properties": {
+        "keyword": { "type": "string", "enum": ["given", "when", "then", "and", "but"], "description": "Gherkin キーワード。given=前提、when=操作、then=期待結果。同種を続ける場合は and / but で繋ぐ" },
+        "text":    { "type": "string", "description": "ステップ本文。glossary リンク（`<a href=\"#glossary:ID\">label</a>`）を含められる。Scenario Outline では `<param>` プレースホルダを書ける" },
+        "table":   { "type": "array", "items": { "type": "array", "items": { "type": "string" } }, "description": "Gherkin の Data Table。行の配列で、先頭行をヘッダとして表示する。任意" }
+      }
+    },
+    "BehaviorExamples": {
+      "type": "object",
+      "required": ["header", "rows"],
+      "additionalProperties": false,
+      "description": "Scenario Outline の Examples テーブル。ヘッダ列名は steps の `<param>` と対応する",
+      "properties": {
+        "header": { "type": "array", "items": { "type": "string" }, "description": "列名の配列。steps 内の `<param>` 名と一致させる" },
+        "rows":   { "type": "array", "items": { "type": "array", "items": { "type": "string" } }, "description": "各行の値の配列。列数は header と揃える" }
       }
     },
     "Example": {
