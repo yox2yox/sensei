@@ -4,10 +4,8 @@
   import type { C4Layer, Concern, Example, FlowState, Plan } from './types'
   import Header from './components/Header.svelte'
   import GlossaryPanel from './components/GlossaryPanel.svelte'
-  import InlineGlossaryText from './components/InlineGlossaryText.svelte'
-  import MetaphorText from './components/MetaphorText.svelte'
+  import GherkinTestCases from './components/GherkinTestCases.svelte'
   import ArchitectureDiagram from './components/ArchitectureDiagram.svelte'
-  import NarrativePanel from './components/NarrativePanel.svelte'
 
   interface LoadResult {
     plan: Plan | null
@@ -55,8 +53,19 @@
     return definedLayers(state).length > 0
   }
 
-  function exampleHasAnyState(ex: Example): boolean {
-    return ex.currentState !== undefined || ex.proposedState !== undefined
+
+  function concernToExample(concern: Concern): Example | null {
+    if (concern.currentState === undefined && concern.proposedState === undefined) return null
+    return {
+      title: concern.title,
+      currentState: concern.currentState,
+      proposedState: concern.proposedState,
+    }
+  }
+
+  function visibleExamples(concern: Concern): Example[] {
+    const direct = concernToExample(concern)
+    return direct ? [direct] : (concern.examples ?? [])
   }
 </script>
 
@@ -95,45 +104,14 @@
             </div>
           {/if}
 
-          {#if concern.takeaway}
-            <div class="mb-4 rounded-lg border border-slate-300 bg-slate-50 p-4">
-              <p class="text-xs font-semibold uppercase tracking-wide text-slate-600">ひと言で</p>
-              <p class="mt-1 text-base font-semibold leading-7 text-gray-900">
-                <MetaphorText text={concern.takeaway} glossary={plan.glossary} />
-              </p>
-            </div>
+          {#if concern.testCases?.length}
+            <GherkinTestCases testCases={concern.testCases} glossary={plan.glossary} />
           {/if}
 
-          {#if concern.safeguards?.length}
-            <div class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-              <h3 class="text-sm font-bold text-emerald-900">細かいけど大事な仕組み</h3>
-              <ul class="mt-2 space-y-1">
-                {#each concern.safeguards as item}
-                  <li class="text-sm leading-6 text-emerald-950">
-                    <MetaphorText text={item} glossary={plan.glossary} />
-                  </li>
-                {/each}
-              </ul>
-            </div>
-          {/if}
-
-          {#each concern.examples ?? [] as example, j (j)}
+          {#each visibleExamples(concern) as example, j (j)}
             <article class="mt-6 first:mt-0 rounded-xl border-2 border-indigo-200 bg-indigo-50/30 p-5">
-              <div class="flex items-baseline gap-2">
-                <span class="rounded bg-indigo-600 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-white">例 {j + 1}</span>
-                {#if example.title}
-                  <h3 class="text-xl font-semibold text-gray-900">{example.title}</h3>
-                {/if}
-              </div>
-              {#if example.condition}
-                <p class="mt-2 text-sm text-gray-700">
-                  <span class="mr-1 font-semibold text-indigo-700">想定:</span>
-                  <InlineGlossaryText text={example.condition} glossary={plan.glossary} />
-                </p>
-              {/if}
-
-              {#if exampleHasAnyState(example)}
-                <NarrativePanel example={example} glossary={plan.glossary} />
+              {#if example.title && visibleExamples(concern).length > 1}
+                <h3 class="mb-3 text-lg font-semibold text-gray-900">{example.title}</h3>
               {/if}
 
               {#if example.currentState && hasAnyDiagram(example.currentState)}

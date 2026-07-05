@@ -59,9 +59,9 @@ describe('normalizePlan', () => {
       description: 'd',
       glossary: baseGlossary,
       pairs: [
-        { title: 'keep', examples: [{ title: 'e', proposedState: makeState() }] },
+        { title: 'keep', proposedState: makeState() },
         { title: 'drop' },
-        { title: 'also-keep', safeguards: ['be careful'] },
+        { title: 'also-keep', testCases: [{ glossaryItemId: 'a', feature: 'F', scenario: 'S', given: ['a'], when: ['b'], then: ['c'] }] },
       ],
     }
     const result = normalizePlan(plan)
@@ -69,21 +69,21 @@ describe('normalizePlan', () => {
     expect(result.pairs.map((p) => p.title)).toEqual(['keep', 'also-keep'])
   })
 
-  it('keeps explanation-only concerns without diagrams', () => {
+  it('keeps direct concern diagrams without examples', () => {
     const plan: Plan = {
       title: 't',
       description: 'd',
       glossary: baseGlossary,
       pairs: [
         {
-          title: 'explain',
-          takeaway: 'pithy summary',
+          title: 'direct',
+          proposedState: makeState(),
         },
       ],
     }
     const result = normalizePlan(plan)
     expect(result.pairs).toHaveLength(1)
-    expect(result.pairs[0].title).toBe('explain')
+    expect(result.pairs[0].title).toBe('direct')
   })
 
   it('rejects edges whose glossary type does not belong to the diagram layer', () => {
@@ -113,6 +113,28 @@ describe('normalizePlan', () => {
       ],
     }
     expect(() => normalizePlan(plan)).toThrow(/layer/i)
+  })
+
+
+  it('rejects direct concern edges whose glossary type does not belong to the diagram layer', () => {
+    const plan: Plan = {
+      title: 't',
+      description: 'd',
+      glossary: baseGlossary,
+      pairs: [
+        {
+          title: 'mixed direct',
+          proposedState: {
+            architectureDiagrams: {
+              component: {
+                edges: [{ order: 1, source: 'a', target: 'b', label: 'x', data: 'y' }],
+              },
+            },
+          },
+        },
+      ],
+    }
+    expect(() => normalizePlan(plan)).toThrow(/pairs\[0\]\.proposedState/)
   })
 })
 

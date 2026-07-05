@@ -3,39 +3,73 @@
   "$id": "https://sensei.local/plan.schema.json",
   "title": "Plan",
   "type": "object",
-  "required": ["title", "description", "glossary","pairs"],
+  "required": [
+    "title",
+    "description",
+    "glossary",
+    "pairs"
+  ],
   "additionalProperties": false,
   "properties": {
-    "title":        { "type": "string", "description": "ページ見出しとして表示される" },
-    "description":  { "type": "string", "description": "タイトル直下に表示される一段落の概要" },
-    "metaphor":     { "$ref": "#/$defs/Metaphor", "description": "任意だが強く推奨" },
-    "takeaway":     { "type": "string", "description": "任意の一文「ひと言で」サマリー" },
+    "title": {
+      "type": "string",
+      "description": "ページ見出しとして表示される"
+    },
+    "description": {
+      "type": "string",
+      "description": "タイトル直下に表示される一段落の概要"
+    },
+    "metaphor": {
+      "$ref": "#/$defs/Metaphor",
+      "description": "任意だが強く推奨"
+    },
+    "takeaway": {
+      "type": "string",
+      "description": "任意の一文「ひと言で」サマリー"
+    },
     "glossary": {
       "type": "array",
       "minItems": 1,
-      "items": { "$ref": "#/$defs/GlossaryItem" },
+      "items": {
+        "$ref": "#/$defs/GlossaryItem"
+      },
       "description": "アーキテクチャ図と説明に登場する人物・要素・概念の一覧（最低1件）"
     },
     "pairs": {
       "type": "array",
       "minItems": 1,
-      "items": { "$ref": "#/$defs/Concern" },
+      "items": {
+        "$ref": "#/$defs/Concern"
+      },
       "description": "複数ペア形式（推奨）"
     }
   },
   "$defs": {
     "C4Layer": {
       "type": "string",
-      "enum": ["context", "container", "component", "code"],
+      "enum": [
+        "context",
+        "container",
+        "component",
+        "code"
+      ],
       "description": "C4 モデルのレイヤー。context=システム外の人や外部システム、container=アプリ/DB などデプロイ単位、component=コンテナ内の構成要素、code=関数/テーブル/インターフェースなどコード詳細"
     },
     "GlossaryItem": {
       "type": "object",
-      "required": ["id", "type", "name", "icon"],
+      "required": [
+        "id",
+        "type",
+        "name",
+        "icon"
+      ],
       "additionalProperties": false,
       "description": "アーキテクチャ図に登場する人物・要素・概念。glossary パネルとノードの両方の元データ。type で C4 レイヤーが決まる",
       "properties": {
-        "id":   { "type": "string", "description": "glossary[] 内で一意。parentId と architectureDiagrams 内 edge から参照される" },
+        "id": {
+          "type": "string",
+          "description": "glossary[] 内で一意。parentId と architectureDiagrams 内 edge から参照される"
+        },
         "type": {
           "type": "string",
           "enum": [
@@ -53,38 +87,136 @@
           ],
           "description": "項目の種別。レイヤーごとに次の type が定義されている — Context: person/external-system、Container: client/server/cloud-service/db、Component: class/module、Code: function/table/interface。それぞれの type はそのレイヤーの architectureDiagrams に限り edge の source/target として指定できる"
         },
-        "name":           { "type": "string", "description": "ノードに表示される短いラベル" },
-        "description":    { "type": "string", "description": "このアイテムに関して簡潔に説明する文章。" },
-        "icon":           { "type": "string", "description": "このアイテムを表す絵文字" },
-        "parentId":       { "type": "string", "description": "別の glossary 項目 id。最大3階層までネスト可。親子で異なるレイヤーになっても良い（例：server がコンテナ、その子 class がコンポーネント）" },
-        "analogy":        { "type": "string", "description": "メタファー世界での対応物" },
-        "responsibility": { "type": "string", "description": "メタファー世界での責務" },
-        "evidence":       { "type": "array", "items": { "$ref": "#/$defs/Evidence" }, "description": "この項目を裏付けるソース上の位置参照または実装計画上のソース" }
+        "name": {
+          "type": "string",
+          "description": "ノードに表示される短いラベル"
+        },
+        "description": {
+          "type": "string",
+          "description": "このアイテムに関して簡潔に説明する文章。"
+        },
+        "icon": {
+          "type": "string",
+          "description": "このアイテムを表す絵文字"
+        },
+        "parentId": {
+          "type": "string",
+          "description": "別の glossary 項目 id。最大3階層までネスト可。親子で異なるレイヤーになっても良い（例：server がコンテナ、その子 class がコンポーネント）"
+        },
+        "analogy": {
+          "type": "string",
+          "description": "メタファー世界での対応物"
+        },
+        "responsibility": {
+          "type": "string",
+          "description": "メタファー世界での責務"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Evidence"
+          },
+          "description": "この項目を裏付けるソース上の位置参照または実装計画上のソース"
+        },
+        "schema": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object"
+            }
+          ],
+          "description": "関数/クラス/インターフェースならシグネチャや入出力、データならフィールド定義を記載する"
+        },
+        "dataStructure": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object"
+            }
+          ],
+          "description": "データ項目の場合の具体的な構造、キー、型、例を記載する"
+        }
       }
     },
     "Concern": {
       "type": "object",
-      "required": ["title"],
+      "required": [
+        "title"
+      ],
       "additionalProperties": false,
-      "description": "1つの設計関心事に対してその説明を行うセクション。複数の例を用いてわかりやすく説明する。",
+      "description": "1つの設計関心事に対するセクション。example ではなく concern ごとに AS-IS/TO-BE 図と glossary item 別 Gherkin テストケースを持つ。",
       "properties": {
-        "title":            { "type": "string", "description": "セクションヘッダ。空文字 '' でヘッダを非表示にできる" },
-        "workflowPosition": { "type": "string", "description": "この pair が変更スコープの end-to-end フロー上のどの工程にあたるかを短い語句で示す。最初の pair は『全体俯瞰』、後続の pair は『type 選択工程』『validation 工程』のように位置づける。viewer はこれをタイトル横にバッジで表示する" },
-        "examples":         { "type": "array", "items": { "$ref": "#/$defs/Example" }, "description": "対象の関心ごとに関する例示。代表例やエッジケースなど、設計を説明するために必要な例をいくつかピックアップして記載する。" },
-        "safeguards":       { "type": "array", "items": { "type": "string" }, "description": "防御的設計・バリデーション・フォールバックなどの注意事項" },
-        "takeaway":         { "type": "string", "description": "この設計を「ひと言で」まとめる。できるだけGlossaryItemで定義したアナロジーを使うなど分かりやすい表現を使って簡潔に表す。" }
+        "title": {
+          "type": "string",
+          "description": "セクションヘッダ。空文字 '' でヘッダを非表示にできる"
+        },
+        "workflowPosition": {
+          "type": "string",
+          "description": "この pair が変更スコープの end-to-end フロー上のどの工程にあたるかを短い語句で示す。最初の pair は『全体俯瞰』、後続の pair は『type 選択工程』『validation 工程』のように位置づける。viewer はこれをタイトル横にバッジで表示する"
+        },
+        "examples": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Example"
+          },
+          "description": "後方互換用。新規プランでは使わず、Concern.currentState/proposedState/testCases を使う。"
+        },
+        "safeguards": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "防御的設計・バリデーション・フォールバックなどの注意事項"
+        },
+        "takeaway": {
+          "type": "string",
+          "description": "この設計を「ひと言で」まとめる。できるだけGlossaryItemで定義したアナロジーを使うなど分かりやすい表現を使って簡潔に表す。"
+        },
+        "currentState": {
+          "$ref": "#/$defs/State",
+          "description": "この concern の AS-IS アーキテクチャ図"
+        },
+        "proposedState": {
+          "$ref": "#/$defs/State",
+          "description": "この concern の TO-BE アーキテクチャ図"
+        },
+        "testCases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GherkinTestCase"
+          },
+          "description": "この concern 内で登場する glossary item ごとの漏れないテストケースを Gherkin 形式で記載する"
+        }
       }
     },
     "Example": {
       "type": "object",
-      "required": ["title"],
+      "required": [
+        "title"
+      ],
       "additionalProperties": false,
       "description": "特定の例に関して、現在状態と変更後の状態に対して処理の流れを説明する。",
       "properties": {
-        "title":         { "type": "string", "description": "例のサブセクションタイトル。" },
-        "condition":     { "type": "string", "description": "どういう状態を想定しているかの説明文。(例: ユーザーがカートに2つ商品を入れて購入を実施する例)"},
-        "currentState":  { "$ref": "#/$defs/State", "description": "AS-IS(例に関して現在どのように処理されているか)。" },
-        "proposedState": { "$ref": "#/$defs/State", "description": "TO-BE(例に関してどのように処理が変更される想定か)。現状解説のみのペアでは省略する" }
+        "title": {
+          "type": "string",
+          "description": "例のサブセクションタイトル。"
+        },
+        "condition": {
+          "type": "string",
+          "description": "どういう状態を想定しているかの説明文。(例: ユーザーがカートに2つ商品を入れて購入を実施する例)"
+        },
+        "currentState": {
+          "$ref": "#/$defs/State",
+          "description": "AS-IS(例に関して現在どのように処理されているか)。"
+        },
+        "proposedState": {
+          "$ref": "#/$defs/State",
+          "description": "TO-BE(例に関してどのように処理が変更される想定か)。現状解説のみのペアでは省略する"
+        }
       }
     },
     "State": {
@@ -92,10 +224,25 @@
       "additionalProperties": false,
       "description": "例示における処理の流れ。1つの処理がどのような手順でどのような関数やクラスが担当して処理していくかを超わかりやすく説明する。",
       "properties": {
-        "architectureDiagrams": { "$ref": "#/$defs/ArchitectureDiagrams", "description": "C4 レイヤーごとに分割されたアーキテクチャ図。必要なレイヤーのみ指定する（全レイヤー必須ではない）" },
-        "storyTitle":        { "type": "string", "description": "時系列解説のセクションタイトル（例：'受付の流れ'）" },
-        "scenes":            { "type": "array", "items": { "$ref": "#/$defs/StoryScene" }, "description": "時系列の処理解説シーン。図の上に表示し、辺を読む前に物語を渡す。edgeRefs はこの state 内のどの architectureDiagrams[layer].edges を指していても良い（order は state 内で一意であること）" },
-        "takeaway":          { "type": "string", "description": "この処理の流れを「ひと言で」まとめる。定義済みのアナロジーを使うなどして、わかりやすく簡潔に説明する" }
+        "architectureDiagrams": {
+          "$ref": "#/$defs/ArchitectureDiagrams",
+          "description": "C4 レイヤーごとに分割されたアーキテクチャ図。必要なレイヤーのみ指定する（全レイヤー必須ではない）"
+        },
+        "storyTitle": {
+          "type": "string",
+          "description": "時系列解説のセクションタイトル（例：'受付の流れ'）"
+        },
+        "scenes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StoryScene"
+          },
+          "description": "時系列の処理解説シーン。図の上に表示し、辺を読む前に物語を渡す。edgeRefs はこの state 内のどの architectureDiagrams[layer].edges を指していても良い（order は state 内で一意であること）"
+        },
+        "takeaway": {
+          "type": "string",
+          "description": "この処理の流れを「ひと言で」まとめる。定義済みのアナロジーを使うなどして、わかりやすく簡潔に説明する"
+        }
       }
     },
     "ArchitectureDiagrams": {
@@ -103,38 +250,122 @@
       "additionalProperties": false,
       "description": "C4 レイヤーごとのアーキテクチャ図。各 layer の edges に含められる glossary は、そのレイヤーに割り当てられた type の項目に限る",
       "properties": {
-        "context":   { "$ref": "#/$defs/ArchitectureDiagram", "description": "Context レイヤーの図。person / external-system の glossary のみ参照可能" },
-        "container": { "$ref": "#/$defs/ArchitectureDiagram", "description": "Container レイヤーの図。client / server / cloud-service / db の glossary のみ参照可能" },
-        "component": { "$ref": "#/$defs/ArchitectureDiagram", "description": "Component レイヤーの図。class / module の glossary のみ参照可能" },
-        "code":      { "$ref": "#/$defs/ArchitectureDiagram", "description": "Code レイヤーの図。function / table / interface の glossary のみ参照可能" }
+        "context": {
+          "$ref": "#/$defs/ArchitectureDiagram",
+          "description": "Context レイヤーの図。person / external-system の glossary のみ参照可能"
+        },
+        "container": {
+          "$ref": "#/$defs/ArchitectureDiagram",
+          "description": "Container レイヤーの図。client / server / cloud-service / db の glossary のみ参照可能"
+        },
+        "component": {
+          "$ref": "#/$defs/ArchitectureDiagram",
+          "description": "Component レイヤーの図。class / module の glossary のみ参照可能"
+        },
+        "code": {
+          "$ref": "#/$defs/ArchitectureDiagram",
+          "description": "Code レイヤーの図。function / table / interface の glossary のみ参照可能"
+        }
       }
     },
     "ArchitectureDiagram": {
       "type": "object",
-      "required": ["edges"],
+      "required": [
+        "edges"
+      ],
       "additionalProperties": false,
       "description": "1つの C4 レイヤーに対応する図。辺の集合とオプションのレイアウト指定を持つ",
       "properties": {
-        "edges":          { "type": "array", "items": { "$ref": "#/$defs/ArchitectureEdge" }, "description": "図の辺。レイヤーで決まる type の glossary のみ source/target に指定できる" },
-        "diagramOptions": { "$ref": "#/$defs/DiagramOptions", "description": "図の手動レイアウトや描画ヒント（既定で十分なら省略）" }
+        "edges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ArchitectureEdge"
+          },
+          "description": "図の辺。レイヤーで決まる type の glossary のみ source/target に指定できる"
+        },
+        "diagramOptions": {
+          "$ref": "#/$defs/DiagramOptions",
+          "description": "図の手動レイアウトや描画ヒント（既定で十分なら省略）"
+        }
       }
     },
     "ArchitectureEdge": {
       "type": "object",
-      "required": ["order", "source", "target", "label", "data"],
+      "required": [
+        "order",
+        "source",
+        "target",
+        "label",
+        "data"
+      ],
       "additionalProperties": false,
       "description": "アーキテクチャ図の1本の辺。依存・呼び出し・データ受け渡し・所有境界などを1つ表す",
       "properties": {
-        "order":  { "type": "integer", "minimum": 1, "description": "state 内で一意の辺番号。1から始まる連番で、読者に見てほしい順。同じ state の複数 layer をまたいで一意にする" },
-        "source": { "type": "string", "description": "起点となる glossary 項目の id（依存・呼び出しの送り手）。type がこの layer に属している必要がある" },
-        "target": { "type": "string", "description": "受け側の glossary 項目の id（依存・呼び出しの受け手）。type がこの layer に属している必要がある" },
-        "label":  { "type": "string", "description": "辺上に表示される短い関係/動作の語句（例：'validates token'）" },
-        "data":   { "type": "string", "description": "この辺が運ぶ payload・エンティティ・契約・結果（例：'AuthToken'）" },
-        "sourcePosition": { "type": "string", "enum": ["top", "right", "bottom", "left"], "description": "起点ノード側のハンドル位置（自動レイアウトでは省略可）" },
-        "targetPosition": { "type": "string", "enum": ["top", "right", "bottom", "left"], "description": "受け側ノードのハンドル位置（自動レイアウトでは省略可）" },
-        "edgeType":       { "type": "string", "enum": ["default", "straight", "step", "smoothstep"], "description": "辺の描画タイプ。default=曲線、straight=直線、step=直角、smoothstep=丸めた直角" },
-        "edgeStyle":      { "type": "string", "enum": ["solid", "dashed", "dotted", "bold"], "description": "辺の線スタイル。solid=実線、dashed=破線、dotted=点線、bold=太線" },
-        "animated":       { "type": "boolean", "description": "true で辺をアニメーション表示（重要な経路を強調したいときに使う）" }
+        "order": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "state 内で一意の辺番号。1から始まる連番で、読者に見てほしい順。同じ state の複数 layer をまたいで一意にする"
+        },
+        "source": {
+          "type": "string",
+          "description": "起点となる glossary 項目の id（依存・呼び出しの送り手）。type がこの layer に属している必要がある"
+        },
+        "target": {
+          "type": "string",
+          "description": "受け側の glossary 項目の id（依存・呼び出しの受け手）。type がこの layer に属している必要がある"
+        },
+        "label": {
+          "type": "string",
+          "description": "辺上に表示される短い関係/動作の語句（例：'validates token'）"
+        },
+        "data": {
+          "type": "string",
+          "description": "この辺が運ぶ payload・エンティティ・契約・結果（例：'AuthToken'）"
+        },
+        "sourcePosition": {
+          "type": "string",
+          "enum": [
+            "top",
+            "right",
+            "bottom",
+            "left"
+          ],
+          "description": "起点ノード側のハンドル位置（自動レイアウトでは省略可）"
+        },
+        "targetPosition": {
+          "type": "string",
+          "enum": [
+            "top",
+            "right",
+            "bottom",
+            "left"
+          ],
+          "description": "受け側ノードのハンドル位置（自動レイアウトでは省略可）"
+        },
+        "edgeType": {
+          "type": "string",
+          "enum": [
+            "default",
+            "straight",
+            "step",
+            "smoothstep"
+          ],
+          "description": "辺の描画タイプ。default=曲線、straight=直線、step=直角、smoothstep=丸めた直角"
+        },
+        "edgeStyle": {
+          "type": "string",
+          "enum": [
+            "solid",
+            "dashed",
+            "dotted",
+            "bold"
+          ],
+          "description": "辺の線スタイル。solid=実線、dashed=破線、dotted=点線、bold=太線"
+        },
+        "animated": {
+          "type": "boolean",
+          "description": "true で辺をアニメーション表示（重要な経路を強調したいときに使う）"
+        }
       }
     },
     "DiagramOptions": {
@@ -147,12 +378,21 @@
           "description": "glossary id をキー、ピクセル座標を値とするマップ。1つでも指定するとそのレイヤーの図は手動レイアウトに切り替わる",
           "additionalProperties": {
             "type": "object",
-            "required": ["x", "y"],
+            "required": [
+              "x",
+              "y"
+            ],
             "additionalProperties": false,
             "description": "図上のノード位置（ピクセル）",
             "properties": {
-              "x": { "type": "number", "description": "X 座標（ピクセル）" },
-              "y": { "type": "number", "description": "Y 座標（ピクセル）" }
+              "x": {
+                "type": "number",
+                "description": "X 座標（ピクセル）"
+              },
+              "y": {
+                "type": "number",
+                "description": "Y 座標（ピクセル）"
+              }
             }
           }
         },
@@ -164,11 +404,50 @@
             "additionalProperties": false,
             "description": "個別の辺に対する描画上書き。ArchitectureEdge 側の同名指定が優先される",
             "properties": {
-              "sourcePosition": { "type": "string", "enum": ["top", "right", "bottom", "left"], "description": "起点ノード側のハンドル位置" },
-              "targetPosition": { "type": "string", "enum": ["top", "right", "bottom", "left"], "description": "受け側ノードのハンドル位置" },
-              "type":     { "type": "string", "enum": ["default", "straight", "step", "smoothstep"], "description": "辺の描画タイプ" },
-              "style":    { "type": "string", "enum": ["solid", "dashed", "dotted", "bold"], "description": "辺の線スタイル" },
-              "animated": { "type": "boolean", "description": "true でアニメーション表示" }
+              "sourcePosition": {
+                "type": "string",
+                "enum": [
+                  "top",
+                  "right",
+                  "bottom",
+                  "left"
+                ],
+                "description": "起点ノード側のハンドル位置"
+              },
+              "targetPosition": {
+                "type": "string",
+                "enum": [
+                  "top",
+                  "right",
+                  "bottom",
+                  "left"
+                ],
+                "description": "受け側ノードのハンドル位置"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "default",
+                  "straight",
+                  "step",
+                  "smoothstep"
+                ],
+                "description": "辺の描画タイプ"
+              },
+              "style": {
+                "type": "string",
+                "enum": [
+                  "solid",
+                  "dashed",
+                  "dotted",
+                  "bold"
+                ],
+                "description": "辺の線スタイル"
+              },
+              "animated": {
+                "type": "boolean",
+                "description": "true でアニメーション表示"
+              }
             }
           }
         }
@@ -176,26 +455,65 @@
     },
     "Metaphor": {
       "type": "object",
-      "required": ["title", "description"],
+      "required": [
+        "title",
+        "description"
+      ],
       "additionalProperties": false,
       "description": "プラン全体を貫く現実世界の比喩。レストラン・郵便局・工場など、プラン内で1つだけ使う",
       "properties": {
-        "title":       { "type": "string", "description": "比喩の短いラベル（例：'レストランの厨房'）" },
-        "description": { "type": "string", "description": "この比喩を通してプラン全体をどう読むかの説明" }
+        "title": {
+          "type": "string",
+          "description": "比喩の短いラベル（例：'レストランの厨房'）"
+        },
+        "description": {
+          "type": "string",
+          "description": "この比喩を通してプラン全体をどう読むかの説明"
+        }
       }
     },
     "StoryScene": {
       "type": "object",
-      "required": ["title", "action"],
+      "required": [
+        "title",
+        "action"
+      ],
       "additionalProperties": false,
       "description": "時系列の1場面。1つ以上のアーキテクチャ辺を人間向けの物語として語る",
       "properties": {
-        "title":    { "type": "string", "minLength": 1, "description": "場面の見出し（例：'場面1: 受付係が注文を受ける'）" },
-        "actor":    { "type": "string", "description": "主役となる glossary 項目の id" },
-        "action":   { "type": "string", "minLength": 1, "description": "その主役が何をするかを平易な言葉で書いた本文" },
-        "result":   { "type": "string", "description": "場面の結末（受け手に渡るもの、状態の変化など）" },
-        "edgeRefs": { "type": "array", "items": { "type": "integer", "minimum": 1 }, "description": "この場面が説明するアーキテクチャ辺の order 配列（同じ state 内の任意のレイヤーの edge を指せる。order は state 内で一意）" },
-        "evidence": { "type": "array", "items": { "$ref": "#/$defs/Evidence" }, "description": "場面の根拠となるソース上の位置参照または実装計画上のソース" }
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "description": "場面の見出し（例：'場面1: 受付係が注文を受ける'）"
+        },
+        "actor": {
+          "type": "string",
+          "description": "主役となる glossary 項目の id"
+        },
+        "action": {
+          "type": "string",
+          "minLength": 1,
+          "description": "その主役が何をするかを平易な言葉で書いた本文"
+        },
+        "result": {
+          "type": "string",
+          "description": "場面の結末（受け手に渡るもの、状態の変化など）"
+        },
+        "edgeRefs": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "description": "この場面が説明するアーキテクチャ辺の order 配列（同じ state 内の任意のレイヤーの edge を指せる。order は state 内で一意）"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Evidence"
+          },
+          "description": "場面の根拠となるソース上の位置参照または実装計画上のソース"
+        }
       }
     },
     "Evidence": {
@@ -204,31 +522,127 @@
       "additionalProperties": false,
       "description": "プラン中の主張を裏付けるソース上の位置参照または計画中の実装コード",
       "properties": {
-        "path":      { "type": "string", "minLength": 1, "description": "ファイルパスまたはソース名。計画中の場合はなくてもいい。" },
-        "startLine": { "type": "integer", "minimum": 1, "description": "開始行番号（1始まり）。分かるなら必ず付ける" },
-        "endLine":   { "type": "integer", "minimum": 1, "description": "終了行番号（1始まり）。範囲の終端" },
-        "label":     { "type": "string", "description": "参照の意図を補足する短い説明" },
-        "codeSnippets":   { "$ref": "#/$defs/CodeSnippet", "description": "裏付けとして説明が必要なコード抜粋。コードすべてを記載せずできるだけ必要な部分に絞って省略できる部分は省略記号などで省略する。" }
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "ファイルパスまたはソース名。計画中の場合はなくてもいい。"
+        },
+        "startLine": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "開始行番号（1始まり）。分かるなら必ず付ける"
+        },
+        "endLine": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "終了行番号（1始まり）。範囲の終端"
+        },
+        "label": {
+          "type": "string",
+          "description": "参照の意図を補足する短い説明"
+        },
+        "codeSnippets": {
+          "$ref": "#/$defs/CodeSnippet",
+          "description": "裏付けとして説明が必要なコード抜粋。コードすべてを記載せずできるだけ必要な部分に絞って省略できる部分は省略記号などで省略する。"
+        }
       }
     },
     "CodeSnippet": {
       "type": "object",
-      "required": ["code"],
+      "required": [
+        "code"
+      ],
       "additionalProperties": false,
       "description": "コード抜粋。できるだけ簡潔に、不要な部分は省略記号を使って省略する。",
       "properties": {
-        "language": { "type": "string", "description": "Prism の言語 id（ts, js, tsx, py, go, rust, json, sql, ...）。シンタックスハイライトに使う" },
+        "language": {
+          "type": "string",
+          "description": "Prism の言語 id（ts, js, tsx, py, go, rust, json, sql, ...）。シンタックスハイライトに使う"
+        },
         "code": {
           "oneOf": [
-            { "type": "string" },
-            { "type": "array", "items": { "type": "string" } }
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
           ],
           "description": "抜粋の本文。文字列または行配列（配列は '\\n' で連結される）。共通先頭インデントは自動デデント、CRLF とタブは正規化される"
         },
-        "label":     { "type": "string", "description": "ヘッダに表示する任意の見出し（例：'型定義'）。省略時は path / 行番号から導出" },
-        "path":      { "type": "string", "description": "抜粋元のファイルパス。ヘッダの表示にのみ使われる" },
-        "startLine": { "type": "integer", "minimum": 1, "description": "抜粋元の開始行番号（1始まり）" },
-        "endLine":   { "type": "integer", "minimum": 1, "description": "抜粋元の終了行番号（1始まり）" }
+        "label": {
+          "type": "string",
+          "description": "ヘッダに表示する任意の見出し（例：'型定義'）。省略時は path / 行番号から導出"
+        },
+        "path": {
+          "type": "string",
+          "description": "抜粋元のファイルパス。ヘッダの表示にのみ使われる"
+        },
+        "startLine": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "抜粋元の開始行番号（1始まり）"
+        },
+        "endLine": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "抜粋元の終了行番号（1始まり）"
+        }
+      }
+    },
+    "GherkinTestCase": {
+      "type": "object",
+      "required": [
+        "glossaryItemId",
+        "feature",
+        "scenario",
+        "given",
+        "when",
+        "then"
+      ],
+      "additionalProperties": false,
+      "description": "glossary item 単位の Gherkin テストケース",
+      "properties": {
+        "glossaryItemId": {
+          "type": "string",
+          "description": "対象 glossary item id"
+        },
+        "feature": {
+          "type": "string"
+        },
+        "scenario": {
+          "type": "string"
+        },
+        "given": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "when": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "then": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "and": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     }
   }
