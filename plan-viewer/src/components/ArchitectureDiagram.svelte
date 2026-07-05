@@ -344,7 +344,7 @@
     bind:nodes
     bind:edges
     {nodeTypes}
-    fitView
+    defaultViewport={{ x: 0, y: 0, zoom: 1 }}
     elevateNodesOnSelect={false}
     onnodeclick={({ node }) => openTooltip(node.id)}
   >

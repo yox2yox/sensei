@@ -26,6 +26,8 @@ export interface GlossaryItem {
   parentId?: string
   analogy?: string
   responsibility?: string
+  schema?: string | Record<string, unknown>
+  dataStructure?: string | Record<string, unknown>
   evidence?: Evidence[]
 }
 
@@ -94,9 +96,22 @@ export interface Example {
   proposedState?: FlowState
 }
 
+export interface GherkinTestCase {
+  glossaryItemId: string
+  feature: string
+  scenario: string
+  given: string[]
+  when: string[]
+  then: string[]
+  and?: string[]
+}
+
 export interface Concern {
   title: string
   workflowPosition?: string
+  currentState?: FlowState
+  proposedState?: FlowState
+  testCases?: GherkinTestCase[]
   examples?: Example[]
   safeguards?: string[]
   takeaway?: string

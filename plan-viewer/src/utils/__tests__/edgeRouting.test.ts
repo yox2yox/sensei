@@ -114,6 +114,8 @@ describe('routeEdges', () => {
     expect(edge.label).toContain('←')
     expect(edge.label).toContain('fetch')
     expect(edge.label).toContain('result')
+    expect(edge.label).not.toContain('req')
+    expect(edge.label).not.toContain('json')
   })
 
   it('merges two same-direction edges without a reverse arrow', () => {

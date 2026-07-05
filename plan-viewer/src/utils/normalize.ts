@@ -31,7 +31,10 @@ function exampleHasContent(ex: Example): boolean {
 
 function concernHasVisibleContent(c: Concern): boolean {
   return Boolean(
-    (c.examples ?? []).some(exampleHasContent) ||
+    c.currentState !== undefined ||
+      c.proposedState !== undefined ||
+      c.testCases?.length ||
+      (c.examples ?? []).some(exampleHasContent) ||
       c.safeguards?.length ||
       c.takeaway,
   )
@@ -91,6 +94,8 @@ export function collectLayerViolations(plan: Plan): LayerViolation[] {
   const violations: LayerViolation[] = []
   const glossaryById = new Map(plan.glossary.map((g) => [g.id, g]))
   ;(plan.pairs ?? []).forEach((concern, ci) => {
+    checkState(concern.currentState, glossaryById, `pairs[${ci}].currentState`, violations)
+    checkState(concern.proposedState, glossaryById, `pairs[${ci}].proposedState`, violations)
     ;(concern.examples ?? []).forEach((example, ei) => {
       const base = `pairs[${ci}].examples[${ei}]`
       checkState(example.currentState, glossaryById, `${base}.currentState`, violations)

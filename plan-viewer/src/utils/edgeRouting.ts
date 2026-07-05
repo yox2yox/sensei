@@ -137,7 +137,7 @@ export function routeEdges(
     // as-is; otherwise join with newlines so each underlying edge stays
     // readable. Reverse-direction edges are prefixed with "←" to disambiguate.
     const labelLines = sorted.map((e) => {
-      const text = `${e.order}. ${e.label}${e.data ? ` / ${e.data}` : ''}`
+      const text = `${e.order}. ${e.label}`
       if (sorted.length === 1) return text
       const reverse = e.source === primaryTarget && e.target === primarySource
       return `${reverse ? '← ' : '→ '}${text}`

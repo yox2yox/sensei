@@ -16,6 +16,7 @@
   function tooltipText(value?: string): string {
     return glossaryLinksToPlainText(value ?? '', validIds)
   }
+
 </script>
 
 <div
@@ -51,6 +52,16 @@
       {/if}
       {#if item.responsibility}
         <span><span class="font-semibold">担当:</span> {tooltipText(item.responsibility)}</span>
+      {/if}
+    </span>
+  {/if}
+  {#if item.schema || item.dataStructure}
+    <span class="mt-2 grid gap-1 text-gray-700">
+      {#if item.schema}
+        <span><span class="font-semibold">スキーマ:</span> <span class="whitespace-pre-wrap font-mono">{typeof item.schema === 'string' ? item.schema : JSON.stringify(item.schema, null, 2)}</span></span>
+      {/if}
+      {#if item.dataStructure}
+        <span><span class="font-semibold">データ構造:</span> <span class="whitespace-pre-wrap font-mono">{typeof item.dataStructure === 'string' ? item.dataStructure : JSON.stringify(item.dataStructure, null, 2)}</span></span>
       {/if}
     </span>
   {/if}
